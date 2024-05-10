@@ -1,0 +1,2438 @@
+\documentclass[a4paper, 11pt, oneside]{book}
+
+\usepackage[margin=3cm]{geometry}
+\usepackage[hungarian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{t1enc}
+\usepackage{setspace}
+\usepackage{parskip} 
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{fancyhdr, fancyvrb}
+\usepackage{bigfoot}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
+\usepackage{listingsutf8, listings}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage{framed}
+
+\captionsetup[lstlisting]{labelformat=empty}
+
+\makeatletter
+\newcommand{\verbatimfontsize}{\small\verbatim@font}
+\makeatother
+
+\lstdefinestyle{cppstyle}{
+	language=C++,
+	basicstyle=\ttfamily\small,
+	commentstyle=\itshape\color{green!60!black},
+	keywordstyle=\bfseries\color{blue},
+	numberstyle=\tiny\color{gray},
+	stringstyle=\color{orange},
+	numbers=left,
+	stepnumber=1,
+	showstringspaces=false,
+	tabsize=4,
+	frame=single,
+	breaklines=true,
+	breakatwhitespace=true,
+	captionpos=b,
+	morekeywords={constexpr, noexcept, override}
+}
+
+\setlist[itemize,0]{label=--}
+
+\title{\textbf{C++ jegyzet} \\[+0.25em] {\Large 2023/2024/1. félév} }
+\author{\textsc{Pataki Norbert} előadásai és \\ \textsc{Brunner Tibor} gyakorlatai alapján}
+\date{\textit{Utolsó módosítás: \today}}
+
+\begin{document}
+	
+\maketitle
+
+\tableofcontents
+
+\chapter*{Előszó}
+
+Ezt a jegyzetet a 2023/2024. őszi félév végén állítottam össze azzal a szándékkal, hogy összegyűjtsem és rendszerezzem az órákon elhangzott ismereteket. A tantárgy nagy hangsúlyt fektet arra, hogy ne csak gyakorlati szempontból tudjuk használni a C++ eszköztárát, hanem (meg)értsük, átlássuk a belső működését, a létrejöttének hátterét. Éppen ezért ez a jegyzet a vizsga elméleti részére való felkészülésben hivatott segítséget nyújtani.
+
+Jelen jegyzet esetében a szó szoros értelmében jegyzetről van szó, azaz a tanulást segíti, az anyagot áttekinthetőbbé, rendszerezettebbé teszi, de nem ajánlom, hogy pusztán ebből készüljünk fel. Inkább kiegészítő anyagnak javaslom a használatát.
+
+A jegyzet elkészítéséhez felhasználtam az előadás diasorait, a gyakorlaton írt jegyzeteimet, valamint Umann Kristóf jegyzetét (\url{https://people.inf.elte.hu/szelethus/LaTeX/cpp/cpp_book/cpp_book.pdf}). Sok segítséget jelentett \hyperlink{https://www.youtube.com/@TheCherno}{\textit{The Cherno}} YouTube csatornája a definíciók megértésében.
+
+Igyekeztem a legjobb tudásom szerint megírni, azonban így is lehetnek benne hibák, pontatlanságok, elgépelések. Ha találsz ilyet, kérlek értesíts az alábbi címen: \href{mailto:ap3558@inf.elte.hu}{ap3558@inf.elte.hu}.
+
+A gyakorlati részére korábbi évek vizsgafeladataival lehet felkészülni, amelyeket az előadó, Pataki Norbert honlapján lehet megtalálni: \url{http://patakino.web.elte.hu/pny2/}
+
+Sikeres felkészülést kívánok!
+
+\begin{flushright}
+	\textit{Nimród}
+\end{flushright}
+
+\chapter{C++ alapismeretek}
+
+\section{Motiváció}
+
+\begin{itemize}
+	\item A '70-es években megjelent a \textbf{C programozási nyelv}, amely nagy sikernek örvendett.
+	
+	\begin{itemize}
+		\item statikusan típusos, imperatív-procedurális paradigmájú nyelv
+		\item anno elég magas szintűnek számított (egy Assemblyhez képest mindenképp), ami kényelmessé tette a megtanulását
+		\item hatékonyság; pl. a szabvány a típusoknak a méretét nem korlátozza\footnote{Kivétel ezalól a \verb*|char|, mivel annak az esetében \verb|sizeof(char) == 1|.}, hanem a fordítóra bízza az adott architektúrának megfelelő kiválasztását
+	\end{itemize}
+	
+	\item Azonban voltak (vannak) limitációi is.
+	
+	\begin{itemize}
+		
+		\item \textbf{Konstansság} kijátszásának lehetősége
+		
+		\item \textbf{Osztályok hiánya}: léteznek \verb|struct|ok, melyekhez írhatunk \textit{függvények}et, de az adattagok elfedését nem támogatja, hiszen minden publikus
+		
+		\item \textbf{Generikusok hiánya}: legközelebbi megoldások a makrók és a \verb|void*|-ek használata
+		
+		\begin{itemize}
+			\item Makrók -- fordítási időben nem (vagy nagyon nehezen) ellenőrizhetők, nem ismerik a típusát az argumentum(ok)nak, hiszen egyszerű szövegbehelyettesítésről van szó
+			\item \verb|void|-pointerek -- kasztolás során elvész a típusinformáció, ha nem vagyunk óvatosak
+			
+		\end{itemize}
+		
+		\item \textbf{Függvények nevei}: C-ben a függvényeket a nevük határozzák meg. Ez gondot jelent, mert ha két adatszerkezet rendelkezik ugyanolyan nevű művelettel, akkor mindkettőnek egyedi nevet kell biztosítanunk. Más könyvtárak más elnevezési konvenciókat követnek, így nagyobb projektek esetén nehézkessé válik a nyomonkövetésük.
+		
+	\end{itemize}
+
+	\item \textbf{Bjarne Stroustrup}, dán informatikus és számítógéptudós, a '80-as években elkészítette a C++ nyelvet, ami ezekre a hiányosságokra próbál megoldást nyújtani.
+	
+	\begin{itemize}
+		\item Maradjon ugyanolyan hatékony, mint a C, de magas-szintű nyelvi eszközöket támogasson, például:
+		
+		\begin{itemize}
+			\item a konstansság védelmére új eszközök (\textbf{referencia} szerinti paraméterátadás, \verb|const| kulcsszó új kontextusai),
+			\item objektumorientált programozás: \textbf{osztályok, származtatás, adatelrejtés, enkapszuláció},
+			\item típusfüggetlen algoritmusok a \textbf{sablonok} (\textit{template}-ek) segítségével,
+			\item \textbf{névterek} bevezetése, a függvényeket az ``összekutyult nevük'' (\textit{mangled name}) és a paraméterlistájuk határozza meg.
+		\end{itemize}
+		
+		\item És mindezek mellett legyen \textbf{visszafele kompatibilis már létező C kóddal} (már amennyire azt ésszerű támogatni).
+	\end{itemize}
+\end{itemize}
+
+\section{A C++ fordítómodellje}
+
+\subsection{A fordítás eszközei}
+
+\textbf{Fordítóprogramok}: \verb|g++|\footnote{Lényegében megegyezik a \verb|gcc|-vel, leszámítva, hogy alapértelmezetten C++-t fordít, de ezt egy kapcsolóval módosítani tudjuk. Hasonlóan, a \verb|gcc|-vel is tudunk C++ kódot fordítani a megfelelő \textit{compiler flag}gel.}, \verb|clang|, Microsoft Visual C++ (MSVC) compiler, stb.
+
+\textbf{Forrásfájljai}: fordítási egység (\verb|*.cpp|), header fájlok (\verb|*.h|, ritkábban \verb|*.hpp|)
+
+Valójában a fordító (\textit{compiler}) nem is nézi a bemeneti forráskód fájlkiterjesztését, akár \verb*|*.txt| fájlt is lefordít, ha az éppenséggel C++ kódot tartalmaz.
+
+Szétválasztjuk a függvények deklarációját a definíciótól, azaz az előbbit a header fájlban, míg az utóbbit a fordítási egységben írjuk meg.
+
+A header fájlokban használjunk \textbf{header guard}okat -- szabványos módon. Ezzel a linkelési hibákat tudjuk csökkenteni, valamint modularizálni tudjuk a kódunkat.
+
+\begin{lstlisting}[style=cppstyle, caption={Szabványos header guard}]
+#ifndef HEADER_GUARD_H
+#define HEADER_GUARD_H
+
+// rest of the code
+
+#endif // HEADER_GUARD_H
+\end{lstlisting}
+
+Az alábbi megoldás \textit{nem szabványos}, ugyanis nem része a szabványnak. Tehát, nem várható el minden fordítótól, hogy támogassa.
+
+\begin{lstlisting}[style=cppstyle, caption={Nem-szabványos header guard}]
+#pragma once
+// rest of the code
+\end{lstlisting}
+
+A \textit{modularizáció} javítja a programkód átláthatóságát, karbantarthatóságát, fokozza a csapatmunkát. Megengedi, hogy csak azokat fordítsuk újra, amiket módosítottunk (a teljes program helyett).
+
+%\newpage
+
+\subsection{A C++ fordító fázisai}
+
+\begin{enumerate}[label=\Roman{*}.)]
+	\item \underline{Preprocesszálás}
+	
+	\begin{itemize}
+		\item egyszerű szöveges \textit{search-and-replace} (kivágás, beszúrás, stb.) módosításokat végez a bemeneti forráskódon $\to$ lassú folyamat
+		\item \textbf{nyelvfüggetlen}, nem ismer semmilyen C/C++ nyelvi szabályt\footnote{Ellenben megoldható, hogy olyan nyelvekben is végrehajtsunk preprocesszálást, amik eleve nem támogatnak preprocesszor direktívákat (pl. Java).}
+		
+		\item az alábbi \textbf{preprocesszor direktívá}kat támogatja (C++11-ig bezárólag): \verb|#if|, \verb|#else|, \verb|#elif|, \verb|#endif|, \verb|#include|, \verb|#define|, \verb*|#undef|, \verb|#ifdef|, \verb|#ifndef|
+		\item fontos, hogy ezek a \textbf{fordítás előtt} történnek meg, azaz egy olyan forráskódot állít elő, ami készen áll a nyelvi fordításra
+		\item konvencionálisan csupa nagybetűkkel nevezzük el ezeket a makrókat
+		\item különlegessége, hogy makrófüggvényeket is definiálhatunk
+		\begin{itemize}
+			\item C-ből származó örökség
+			\item mivel nyelvfüggetlen, nem ismeri az argumentumok típusát
+			\item a változók nevei bekavarhatnak, ezért indokolt körbezárójeleznünk őket a makró kódjában
+			\item kerüljük a használatukat C++-ban, hiszen rendelkezünk sokkal biztonságosabb eszközökkel
+		\end{itemize}
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+#define SQUARE(x) ((x)*(x))	
+int main() {	
+	int i = 5;
+	int e01 = SQUARE(i);
+	int e02 = SQUARE(2+3);
+	int e03 = SQUARE(i++);
+	std::cout<< e01 << " " << e02 << " " << e03 << std::endl;
+	// result: 25 25 30 (30 == 5 * 6) (compiled in g++)
+	return 0;
+} // results may vary depending on the compiler
+\end{lstlisting}
+		
+		\item van lehetőség C/C++ \textbf{feltételes fordítás}ra, azaz C-ben írt header fájlt C++ kódban felhasználni és C++ fordítóval lefordítani, \textbf{előredefiniált preprocesszor szimbólumok} segítségével; az adott build környezet szerint fog működni másképp a program
+\begin{lstlisting}[style=cppstyle]
+#ifdef __cplusplus
+extern "C" {
+#endif
+// ...
+#ifdef __cplusplus
+}
+#endif
+\end{lstlisting}
+	\end{itemize}
+	
+	\item \underline{Nyelvi fordítás}
+	
+	\begin{itemize}
+		\item forráskód $\to$ gépi (bináris) kód
+		\item fordítási ellenőrzéseket végez, figyelmeztetéseket (akár hibaüzeneteket) is dob
+		\begin{itemize}
+			\item lexikális egységekre bontja fel a forráskódot (\textit{tokenizáció})
+			\item meghatározza, hogy milyen szerepet töltenek be a tokenek (\textit{lexikális elemzés}) (lényegében: mi a szófaja?)
+			\begin{itemize}
+				\item \textbf{kulcsszók}: \verb*|for|, \verb*|int|, \verb*|virtual|, \verb*|static|, \verb*|namespace|, \verb*|const|, $\ldots$
+				\item \textbf{azonosítók}: \verb*|std|, \verb*|cout|, \verb*|Foo|, \verb*|foo|, \verb|_i|, \verb*|vector|, \verb*|string|
+				
+				\begin{itemize}
+					\item az azonosítók \textit{case-sensitive}-ek
+					\item fontos, hogy jó azonosítónevet használjunk
+					\item konvenciók: \textbf{\textit{snake case}} (\verb*|snake_case|), \textit{camel case} (\verb*|CamelCase|), \textit{Hungarian notation} (a változó nevébe bele van égetve a típusa, mára elavult szokás)
+					\item kerüljük az ékezeteket... meg általában a nem-angol elnevezéseket
+					\item a név elején lévő aláhúzásjel / alsókötőjel (\textit{underscore}) sem jó ötlet, ugyanis ezek fenntartottak
+				\end{itemize}
+				
+				\item \textbf{konstans szövegliterálok}: \verb*|"hello world"|
+				
+				\begin{itemize}
+					\item a C-vel való visszafele-kompatibilitás csomó gondot okoz
+					\item a C-ben a fenti példa típusa: \verb|char[12]| (nem pointer, tömb)
+					\item C++-ban a fenti példa típusa: \verb|const char[12]| (szintén nem pointer)
+					\item viszont ha a tömb pointerré kasztolódik, akkor elvész a tömb mérete (a \verb*|sizeof| nem az elvárt eredményt fogja adni)
+					\item továbbra is fontos, hogy \verb|'\0'| szerepeljen a végén
+					\item bevezették az \verb*|std::string| típust, ami sok terhet levesz a vállunkról
+				\end{itemize}
+				
+				\item \textbf{számliterálok}: \verb*|123|, \verb*|12.34|, \verb*|0x123|, \verb*|42UL|, stb.
+				\item \textbf{operátorok}: \verb*|<<|, \verb*|+|, stb.
+				\begin{itemize}
+					\item \underline{precedencia}: melyik részkifejezés értékelődik ki hamarabb
+					\item \underline{asszociativitás}: balra- vagy jobbra köt
+					\item \underline{aritás}: operandusainak száma (unáris, bináris, ternáris)
+					\item \underline{fixitás}: prefix, infix, postfix
+					\item \underline{típus}: pl. az osztás másképp működik \verb*|int| és \verb*|double| esetében
+					\item \underline{mellékhatás, eredmény}: C/C++-ban meghatározzák az operátort
+				\end{itemize}
+			
+			%\newpage
+			
+				\item \textbf{szeparátorok}: \verb*|';'|, \verb*|','|, \verb|'\t'|, \verb*|' '|\footnote{Ez a szóközt hivatott szemléletesebben ábrázolni.} (\textit{whitespace} karakterek)
+			\end{itemize}
+			\item ebből felépíti a program \textbf{absztrakt szintaxisfá}ját a kifejezésekből
+			\item ezután következik a \textit{szemantikai elemzés} ($\Leftrightarrow$ van-e értelme annak, amit leírtunk?)
+		\end{itemize}
+		%\newpage
+		
+		\item optimalizál(hat)ja a kódot
+		
+		\begin{itemize}
+			\item egy tipikus példa rá: \textbf{return value optimisation} (RVO)
+			\item vegyük az alábbi példát: \textit{hány objektum jön létre}?
+\begin{lstlisting}[style=cppstyle]
+struct S {};
+
+S f() { 
+	S s; 		// 1 object has been created
+	return s; 
+}
+
+int main() {
+	S s = f();	// copy constructor is executed
+	return 0;
+}
+\end{lstlisting}
+			\item a nyelv szabályai szerint 2 jön létre $\to$ de ez ellentmond a C++ hatékonyság iránti elköteleződésének
+			\item a compiler ezt úgy optimalizálja, hogy csak 1 objektum jön létre
+			\item nem figyelmezteti róla a programozót, annak ellenére, hogy egy \textbf{nagyon erős optimalizáció}ról van szó
+		\end{itemize}
+		
+	\end{itemize}
+	
+	\item \underline{Összeszerkesztés (linkelés)}
+\end{enumerate}
+
+%\clearpage
+
+\section{Típusrendszer}
+
+\begin{itemize}
+	\item a \textbf{processzor}ban regiszterek vannak
+	\begin{itemize}
+		\item \textbf{regiszter}: ideiglenes tárolóegység, ami betölt $n$ bitet a memóriából, gyors számításokat végez rajta, majd visszahelyezi
+		\begin{itemize}
+			\item 64-bites processzor $\Longleftrightarrow$ 1 regiszter 64 bitet képes tárolni
+			\item jó néhány \textbf{általános célú regiszter}
+			\begin{itemize}
+				\item 64-biten: RAX, RBX, $\ldots$
+				\item 32-biten: EAX, EBX, $\ldots$
+				\item 16-biten: AX, BX, $\ldots$; 8-biten: AH, AL
+				\item backward kompatibilitás a régebbi architektúrákkal
+			\end{itemize}
+			\item \textbf{lebegőpontos regiszterek} -- sokáig nem volt általános a hardveres támogatottságuk
+			\item egyéb \textbf{specifikus regiszterek}
+		\end{itemize}
+		\item maga a regiszter \textbf{típustalan}, bármit tárolhat, ami belefér (egész szám, struct, memóriacím, koordináta)
+	\end{itemize}
+	\item a \textbf{típus} az a programozási nyelvekben létező \textbf{konstrukció, ami egy bitsorozathoz valamilyen jelentést társít}
+	\begin{itemize}
+		\item a jelentés meghatározza, milyen értelmes műveleteket végezhetünk el rajta
+		\item fordítási visszajelzések, pl. \verb*|strlen()|-nel ne kérdezzük le egy \verb*|double| hosszát, mégha bele is fér 64-bitbe
+	\end{itemize}
+	\item \underline{\texttt{int}} -- \textbf{alapértelmezett számábrázolás}
+	\begin{itemize}
+		\item \textbf{előjeles, kettes komplemensű számábrázolás}: a bitsorozat elején lévő bit(ek) felelős(ek) az előjel (vagy helyiérték) jelöléséért
+		\item \verb|sizeof(int)| $\to$ implementációfüggő
+		\item \verb*|unsigned| számábrázolás esetén az előjelbitet \textbf{helyiértékbit}ként használja fel
+		\item a konstansliterálokon jelezhetjük szuffixumokkal, hogy pontosan milyen típusú
+		\begin{itemize}
+			\item \verb*|42L| -- \verb|long|
+			\item \verb*|42U| -- \verb|unsigned int|
+			\item \verb*|42UL| -- \verb|unsigned long|
+		\end{itemize}
+	\end{itemize}
+	\item \underline{\texttt{char}} -- \textbf{egységtípus}a a nyelvnek
+	\begin{itemize}
+		\item azaz \verb|sizeof(char) == 1| $\to$ ezt a szabvány garantálja
+		\item minden más típust egyenlőtlenségekkel határoz meg ($\leq$ relációval)
+		\item a \verb*|char| előjelessége implementációfüggő
+		\item \verb*|sizeof(char)| $\leq$ \verb*|sizeof(short)| $\leq$ \verb*|sizeof(int)| $\leq$ \verb*|sizeof(long)|
+		\item \verb*|sizeof(bool)| $\leq$ \verb*|sizeof(long)| -- a C-s hagyomány és visszafele kompatibilitás megőrzése miatt esett erre a választás
+	\end{itemize}
+	\item \underline{\texttt{double}} -- \textbf{alapértelmezett lebegőpontos számábrázolás}
+	\begin{itemize}
+		\item a \verb*|float| fele annyi bittel írja le azt, amit a \verb*|double|, ezért fele olyan precíz
+		\item jellemzően \textbf{nem a tartomány a szempont, hanem a pontosság}
+		\item szuffixolás, alternatív jelölések
+		\begin{itemize}
+			\item \verb*|12.34| -- alapértelmezetten \verb*|double|
+			\item \verb*|12.34f| -- \verb|float|
+			\item \verb*|12.34L| -- \verb|long double|
+			\item \verb*|88e-1| $\Longleftrightarrow$ $88 \cdot 10^{-1}$ ([előjel], mantissza, exponens) $\Longleftrightarrow$ 8.8
+			\item \verb*|1234e-2f| -- 12.34 (\verb*|float|)
+			\item \verb*|54e-1L| -- 5.4 (\verb|long double|)
+		\end{itemize}
+		\item IEEE 754, lebegőpontos számábrázolási szabvány
+		\item \verb*|sizeof(char)| $\leq$ \verb*|sizeof(float)| $\leq$ \verb*|sizeof(double)| $\leq$ \verb|sizeof(long double)|
+		\item a lebegőpontos számábrázolás pontatlanságait tartsuk szemelőtt!
+	\end{itemize}
+\end{itemize}
+
+%\newpage
+
+\section{Deklaráció, definíció}
+
+\begin{tcolorbox}[title={\textbf{Deklaráció}}]
+	\textbf{Egy névvel rendelkező entitáshoz típust rendelünk.} Így beszélhetünk \textit{változódeklaráció}ról és \textit{függvénydeklaráció}ról.
+\end{tcolorbox}
+
+\begin{tcolorbox}[title={\textbf{Definíció}}]
+	\textit{Változó} esetén: meghatározzuk magát a változót, \textbf{tárhely foglalása történik}.
+	
+	\textit{Függvény} esetén: megadjuk a \textbf{függvénytörzs}ét.
+	
+	Kapcsolódó fogalom: \textbf{one definition rule} (ODR)
+\end{tcolorbox}
+
+\begin{tcolorbox}[title={\textbf{Inicializáció}}]
+	Egy változónál a \textbf{legelső értékadást} jelenti.
+\end{tcolorbox}
+
+\begin{lstlisting}[style=cppstyle, caption={Egy összefoglaló példa deklarációra, definícióra és inicializációra}]
+#include "mylib.h" // mylib.h: int global_var;
+
+extern int global_var; // only declaration, not definition
+
+// forward declaration
+struct MyStruct;
+class MyClass;
+
+int func(int x, int y); // declaration
+
+int main() 
+{
+	int i; 		// declaration, definition
+	int j = 42; // declaration, definition and initialisation
+	return 0;
+}
+
+// definition of the previously declared function
+int func(int x, int y) 
+{
+	return x + y;
+}
+\end{lstlisting}
+
+\section{Láthatóság, elfedés}
+
+\textbf{Blokkutasítás}: \verb|{ ... }| között elhelyezett utasítássorozat.
+
+\textbf{Lokális változó}: blokkutasításon belül deklarált változó.
+
+\textbf{Blokkra nézve lokális}: abban a blokkban van, amiben vizsgáljuk.
+
+\textbf{Blokkra nézve nonlokális}: a külső (bennfoglaló) blokkban van, de az aktuális blokk a deklaráció hatókörében van.
+
+\textbf{Globális változó}: nem tartozik semmilyen blokkhoz.
+
+\textbf{Elfedés} (\textit{shadowing, hiding}): egy belső blokkban ugyanolyan nevű változót deklarálunk, amilyen a blokkon kívül már deklarálva van. Ilyenkor a belső elfedi a külső nevét, így nem sérül a \textit{one definition rule}.
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+
+int main()
+{
+	int n = 0;
+	
+	{ // block starts here
+		std::cout << n << std::endl; // 0
+		int n = 1;
+		std::cout << n << std::endl; // 1
+	}
+
+	std::cout << n << std::endl;	 // 0
+	
+	return 0;
+}
+\end{lstlisting}
+
+\section{A C++ memóriamodellje}
+
+Három részből áll a C++ memóriamodellje (ahogyan a C-nek is).
+
+\begin{enumerate}[label=\Roman{*}.)]
+	\item \underline{Stack}:
+	
+	\begin{itemize}
+		\item \textbf{miket tárol}: lokális változók, függvények aktivációs rekordja $\to$ \textit{automatikus változók}
+		\item verem adatszerkezetben
+		\item \textbf{élettartam}: definiálástól a blokk végéig tart (ahol lefut a destruktoruk)
+		\item a destruálás fordított sorrendben történik a konstruáláshoz képest
+	\end{itemize}
+	
+	\item \underline{Heap}:
+	
+	\begin{itemize}
+		\item \textbf{miket tárol}: mindent, amit a \verb*|new|, \verb*|new[]| operátorokkal példányosítunk $\to$ \textit{dinamikus változók}
+		\item \textbf{élettartam}: memóriafoglalástól (\verb*|new|, \verb*|new[]|) felszabadításig (\verb*|delete|, \verb*|delete[]|) (NEM fut le a destruktor automatikusan a blokk végén)
+		\item potenciális problémák:
+		\begin{itemize}
+			\item elfelejtjük felszabadítani $\to$ memóriaszivárgás
+			\item felszabadítás után hozzáférés (\textit{dangling pointers}) $\to$ olyan memóriaterületet akarunk elérni, amihez (már) nincs jogunk hozzáférni $\to$ szegmentációs hiba
+			\item kétszer szabadítjuk fel a területet $\to$ definiálatlan viselkedés
+		\end{itemize}
+	\end{itemize}
+	
+	\item \underline{Statikus tárterület}:
+	
+	\begin{itemize}
+		\item \textbf{miket tárol}: globális változók, statikus függvények, sztringliterálok
+		\item \textbf{élettartam}: a program elejétől a végéig
+	\end{itemize}
+\end{enumerate}
+
+\section{Névterek}
+
+A \textbf{C-ben} problémát jelentett, hogy a függvényt a nevük alapján azonosítja be a fordító, emiatt \textbf{minden függvénynek egyedi névvel kell rendelkeznie}. Ha sok adatszerkezetet használunk, melyek azonos nevű, hasonló műveletekkel rendelkeznek (pl. \verb*|add()|), akkor mindegyiknek egyedi \verb|add|-függvényt kéne írnunk. Ez kényelmetlenné teszi a kód áttekinthetőségét és karbantarthatóságát -- nem beszélve arról, hogy más könyvtárak más elvenezési konvenciókat használhatnak, így a kódunk még kaotikusabbnak fog kinézni.
+
+Erre a problémára nyújtanak megoldást a \textbf{névterek}. Egy névtér úgymond ``becsomagolja'' a benne definiált függvényeket, típusokat, stb., így egy ``közös csatlakozási pontból'' hivatkozni tudunk rájuk -- ezzel \textbf{elkerülve a névütközéseket}.
+
+Használata végtelenül egyszerű; a névteret a \verb*|namespace| kulcsszóval tudjuk létrehozni és amit a blokkjába írunk, az abba fog tartozni. Bármit tartalmazhat: \textbf{változót, osztályt, függvényt}\footnote{Ez később vissza fog térni, ugyanis egy súlyos probléma okozója lesz (ld. \textit{Sablonok, Iterátorok}).}. A hivatkozást a \verb*|::| operátorral tehetjük meg.
+
+Létezik egy ún. \textbf{névtelen} vagy \textbf{anonim névtér}. Függvények esetében szinte megegyezik azzal, ha \verb*|static| kulcsszóval látnánk el az elején. Tehát \textbf{minden, amit az anonim névtérbe írunk, az a fordítási egységre nézre lokális marad}. Hatalmas előnye, hogy így lokális típusokat is tudunk definiálni -- amit egy sima \verb*|static| kulcszóval nem tudnánk elérni.
+
+\begin{lstlisting}[style=cppstyle]
+namespace Namespace01 
+{
+struct Struct01 {};
+int return_value() { return 0; }
+}
+
+namespace Namespace02 
+{
+struct Struct02 {};
+int return_value() { return 42; }
+}
+
+// anonymous namespace
+namespace
+{
+struct Struct03 {};	// S03 remains local in the translation unit
+int return_value() { return -1; }
+}
+
+int main() {
+	int v01 = Namespace01::return_value(); // 0
+	int v02 = Namespace02::return_value(); // 42
+	int v03 = ::return_value(); // -1
+}
+\end{lstlisting}
+
+A \textbf{C++} emellett a megváltoztatta a függvények beazonosítására vonatkozó szabályokat. Egy függvényt több tulajdonsága határoz meg: \textbf{a paraméterlistája, a neve, a névtere, visszatérési értéke}. Ezeket az információkat egy ``\textit{összekutyult név}ben'', avagy \textbf{mangled name} gyúrja össze. Ez az a név, amit a fordító generál és a binárisban használatos.
+
+\section{Referenciák}
+
+A C-ben csak érték szerinti paraméterátadás létezik. Ha pointert adunk át, valójában az adott memóriacím másolódik le.
+
+A \textbf{pointerek} ugyanúgy léteznek C++-ban is, azonban rendelkeznek azzal a súlyos hibával -- amit a C-től örökölt --, hogy \textbf{könnyen megsérthetjük a konstansságát a mutatott változónak}. Többek között erre hivatott megoldást nyújtani a referencia.
+
+\begin{itemize}
+	\item A referenciatípust a \verb*|&| karakterrel jelöljük. Vigyázat: ez nem a címlekérdező operátor!
+	
+	\item A referencia egy már definiált változónak a fedőneve (egyfajta \textit{alias}). Nem jön létre, ha nem létezik olyan objektum, amire referáljon -- magyarul: \textbf{inicializálni kötelező}.
+	
+	\item Inicilizációt követően \textbf{nem állíthatjuk át, hogy más objektumra hivatkozzon} (ellentétben egy pointerrel). A példában szereplő művelet azt sugallja, mintha a \verb*|reference| változót átállítanánk úgy, hogy a \verb*|temp|re hivatkozzon, de valójában csak értékül adja a \verb*|temp| értékét.
+	
+	\item Amikor függvényparaméterként adjuk át, akkor \textbf{nem másolódik le a teljes objektum}, hanem a függvényből tudjuk \textbf{módosítani az eredeti objektum értékét}.
+	
+	\item Ugyan a háttérben egy pointerről van szó szintaktikai mázzal, \textbf{nem} adhatunk értékül neki \verb*|NULL| értéket (vagy C++11-től \verb|nullptr| értéket). Hasonlóan, \textbf{nem használ pointeraritmetikát}, tehát nem kell dereferálnunk, címet lekérdeznünk. Összetett típusoknál a \verb*|.| adattaglekédező operátort használjuk a \verb*|->| operátor helyett.
+	
+	\item \textbf{Konstans referencia} átadása esetében se nem állíthatjuk át, hogy melyik objektumra referáljon, se nem módosíthatjuk a belső állapotát -- így biztonságosabb a pointereknél.
+	
+	\item Konstans referenciának értékül adhatunk jobbértéket. Sima referenciának nem.
+\end{itemize}
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+// passing argument as constant reference
+void print_variable(const int& var) {
+	std::cout << var << std::endl; // no need to dereference it
+}
+int main() {
+	int var = 42;
+	int temp = 5;
+	
+	int& reference = var; // initialisation is obligatory!
+	reference = temp;	  // equivalent to: var = temp;
+	
+	print_variable(var);  // no need to use the '&' operator
+						  // result: 5
+}
+\end{lstlisting}
+
+
+\section{Balérték, jobbérték}
+
+\textbf{Balérték} (\textit{lvalue}): egy címképezhető (\verb*|&|) objektum.
+
+\textbf{Jobbérték} (\textit{rvalue}): ami nem balérték. Ezek jellemzően literálok (\verb*|42|, \verb*|"text"|), érték szerint visszatérő függvény visszatérési értéke. Pl. annak, hogy \verb*|&5| nincs értelme, mert az \verb*|5| nem egy memóriában tárolt változó.
+
+\chapter{Objektumorientált programozás}
+
+\begin{tcolorbox}[title=Objektumorientált programozási nyelv]
+	Egy programozási nyelvet \textbf{objektumorientált}nak nevezünk, ha az alábbi eszközöket támogatja: \textbf{enkapszuláció, adatelrejtés elve, öröklődés} (származtatás).
+\end{tcolorbox}
+
+A C++-ban saját típust a \verb*|class| és a \verb*|struct| kulcsszókkal lehet deklarálni / definiálni. A kettő között a különbség annyi, hogy a \verb*|class|ban alapértelmezetten az adattagok privát láthatóságúak, a \verb*|struct|ban publikusak. Minden másban teljesen egyformán viselkednek.
+
+A C++ az osztályok műveleteit tagfüggvényeknek hívja, ellentétben a metódussal, amivel OEP-en megismerkedtünk.
+
+\textbf{Mekkora egy osztály / struktúra mérete?} Akkora, amekkora az adattagjainak méretének összege, plusz még egy kevés (hogy mennyivel, az implementációfüggő, de kikapcsolható). Tehát a tagfüggvényeinek pointerei nem számítódnak bele. 
+
+Az az oka, amiért a két konstrukció szinte teljesen megegyezik, mert a \verb*|struct|ot a C-ből örökölte, ezért visszafele kompatibilisnak kell maradnia vele (ezért alapértelmezetten nyilvánosak az adattagok); míg a \verb*|class| elnevezést meg a Simula 67-től vette át\footnote{Simula 67, az első objektumelvű programozási nyelv.}, mivel mire a C++ megjelent, addigra konvencióvá vált az elnevezés.
+
+\section{Fordító által generált tagfüggvények}
+
+\subsection{Alapértelmezett konstruktor}
+
+A C++-ban minden típusnak létezik konstruktora. Még a primitív típusoknak is.
+
+\begin{lstlisting}[style=cppstyle]
+int i(42); // equivalent to: 'int i = 42;' or 'int i = int(42);'
+int j(i);  // equivalent to: 'int j = i;' or 'int j = int(i);'
+\end{lstlisting}
+
+Osztályban az alábbi módon írhatunk konstruktort.
+
+\begin{lstlisting}[style=cppstyle]
+class Point {
+private:		// this line can be omitted
+	int x, y;
+};
+\end{lstlisting}
+
+És a vicc az, hogy explicite nem is kell írnunk semmit, hiszen ilyenkor a fordító generál egy ún. \textbf{alapértelmezett konstruktor}t (\textit{default constructor}).
+
+\begin{tcolorbox}[title={\textbf{Alapértelmezett konstruktor}}]
+	Az alapértelmezett konstruktor egy \textbf{paraméter nélküli} konstruktor. Ezt generálhatja a compiler, de mi magunk is írhatunk ilyet.
+\end{tcolorbox}
+
+Az alábbi módon írhatunk olyan konstruktort, ami egyszerre elfogad 0, 1 vagy 2 paramétert is, ugyanis ha nem töltjük ki, akkor a megadott értéket fogja hozzárendelni az adattaghoz.
+
+Vigyázat: itt a \verb*|this| egy \verb*|Point| típusú mutató, ami pontosan az inicializálandó objektumra mutat. Tehát nem kulcsszóról van szó (mint Javában, C\#-ban).
+
+\begin{lstlisting}[style=cppstyle]
+class Point
+{
+private:
+	int x, y;
+	
+public:
+	Point(int x = 0, int y = 0)
+	{
+		this->x = x;
+		this->y = y;
+	}
+};
+\end{lstlisting}
+
+Ezt akár még tömöríthetjük is tovább. A kettőspont után az \textbf{inicializáló listá}val a korábban megismert módon tudjuk inicializálni az adattagokat. Az, hogy a nevek megegyeznek, nem jelent gondot, hisz a külső az osztály adattagjára, a belső a konstruktor paraméterére vonatkozik. \textbf{Az inicializáló listában a deklaráció sorrendjében történik az inicializáció, nem a listabeli felsorolásában.}
+
+\begin{lstlisting}[style=cppstyle]
+class Point
+{
+private:
+	int x, y;
+		
+public:
+								// initialiser list
+	Point(int x = 0, int y = 0) : x(x), y(y) { }
+};
+\end{lstlisting}
+
+Minden adattagját az osztálynak a konstruktorban kell inicializálni (C++11-ig).
+
+\subsection{Destruktor}
+
+Vegyünk egy másik példát. Írjunk egy olyan tömb osztályt, ami $n$ darab \verb*|int|et tárol, és lekérdezhető a mérete futási időben. Rendelkezzen \verb*|[]| operátorral. Érjük el azt, hogy lehessen inicializálni egy tömböt úgy, hogy a forrástömböt az egyenlőségjel túloldalára helyezzük.
+
+\newpage
+
+\begin{lstlisting}[style=cppstyle]
+Array a(5);
+for (int i = 0; i < a.capacity(); i++) a[i] = 42;
+Array b = a; // initialisation with the contents of 'a'
+\end{lstlisting}
+
+Az osztály alapja valahogy így nézne ki.
+
+\begin{lstlisting}[style=cppstyle]
+class Array {
+private:
+	int* data;
+	int  capacity;
+
+public:
+	Array(int capacity) {
+		// minimal error handling
+		if (capacity == 0) capacity  = 1;
+		if (capacity < 0)  capacity *= (-1);
+		
+		this->data = new int[capacity];
+		this->capacity = capacity;
+	}
+};
+\end{lstlisting}
+
+Először győződjünk meg róla, hogy működik-e. Legyen a \verb*|main()| függvényünk az alábbi:
+
+\begin{lstlisting}[style=cppstyle]
+// definitions of Point and Array
+int main() {
+	Point p;
+	Array a(5);
+	return 0;
+}
+\end{lstlisting}
+
+Ellenőrizzük a \verb*|valgrind|dal, hogy nem szivárog-e memória.
+
+\begin{framed}
+	\verbatimfontsize
+	\begin{verbatim}
+		==11158== Memcheck, a memory error detector
+		==11158== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+		==11158== Using Valgrind-3.18.1 and LibVEX; rerun with -h for copyright info
+		==11158== Command: ./pointarray
+		==11158== 
+		==11158== 
+		==11158== HEAP SUMMARY:
+		==11158==     in use at exit: 20 bytes in 1 blocks
+		==11158==   total heap usage: 2 allocs, 1 frees, 72,724 bytes allocated
+		==11158== 
+		==11158== LEAK SUMMARY:
+		==11158==    definitely lost: 20 bytes in 1 blocks
+		==11158==    indirectly lost: 0 bytes in 0 blocks
+		==11158==      possibly lost: 0 bytes in 0 blocks
+		==11158==    still reachable: 0 bytes in 0 blocks
+		==11158==         suppressed: 0 bytes in 0 blocks
+		==11158== Rerun with --leak-check=full to see details of leaked memory
+		==11158== 
+		==11158== For lists of detected and suppressed errors, rerun with: -s
+		==11158== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+	\end{verbatim}
+\end{framed}
+
+Sajnos azt tapasztaljuk, hogy igenis szivárog. Ami viszont érdekesebb, hogy miért csak az egyik?
+
+Idézzük fel az automatikus változókról tanultakat! A blokk legvégén a destruktoruk lefut automatikusan -- de mi nem írtunk destruktort egyikhez sem. Ez így van, viszont a fordító generál nekünk egyet. Ha újból megnézzük, hány bájt veszett el (20 bájt = \verb|sizeof(int) * 5| a gépemen), feltűnhet, hogy pontosan a tömb méretének megfelelő tárterület szivárgott el -- nem csoda, hisz az egy dinamikus változó, azt nekünk kell destruálnunk.
+
+Röviden, a destruktor is egy olyan tagfüggvény, amit \textbf{legenerál a fordító}. Összesen négy ilyen tagfüggvény van: az \textbf{alapértelmezett (default) konstruktor}, a \textbf{destruktor}, a \textbf{másoló (copy) konstruktor} és az \textbf{értékadó operátor}.
+
+Azonban, ha \textit{erőforrásokkal dolgozik az osztályunk} (fájllal, allokált tárterülettel), akkor életbe lép a \textbf{hármas szabály (rule of three)}.
+
+\begin{tcolorbox}[title={\textbf{Rule of three}}]
+	Ha az osztályunk erőforrásokkal dolgozik és legalább az egyik, a fordító által generált tagfüggvény nem megfelelően működik, akkor írjuk meg mind a hármat saját magunk (feltéve, hogy a konstruktort már megírtuk).
+\end{tcolorbox}
+
+Szerencsére a destruktornak nem bonyolult a szintaxisa, így megírhatjuk könnyedén az \verb*|Array| osztálynak. A \verb*|Point|nak szükségtelen, hisz az nem foglal le dinamikusan memóriát.
+
+\begin{lstlisting}[style=cppstyle]
+class Array
+{
+// ... 
+public:
+	// constructor
+	Array(int capacity) { ... }
+
+	// destructor
+	~Array() { delete[] this->data; }
+};
+\end{lstlisting}
+
+\newpage
+
+\subsection{Copy konstruktor}
+
+Korábban megbeszéltük, hogy a fordító generál nekünk másoló konstruktort is. De pontosan mi is a feladata?
+
+\begin{tcolorbox}[title={\textbf{Copy konstruktor}}]
+	Egy copy konstruktor egy olyan konstruktor, amit egy \textbf{ugyanolyan osztálytípusú argumentummal hívunk és átmásolja az argumentuma tartalmát anélkül, hogy azt módosítaná}.
+	
+	A copy konstruktor akkor hívódik meg, amikor egy \textit{másik ugyanolyan típusú objektummal} \textbf{inicializálják} [$\ldots$].\footnote{A definíció eredeti angol változata: \url{https://en.cppreference.com/w/cpp/language/copy_constructor}}
+	
+	\begin{lstlisting}[style=cppstyle]
+T t01;			// default constructor
+				// equivalent to: T t01 = T();
+
+T t02 = t01;	// copy constructor
+				// equivalent to: T t02(t1);
+	\end{lstlisting}
+\end{tcolorbox}
+
+Megkülönböztetünk kétfajta másolást a programozásban.
+
+\begin{enumerate}
+	\item \textbf{Sekély másolás} (\textit{shallow copy}): amikor az adatszerkezetet adattagonként másoljuk le. Heapen allokált objektumok esetén ez a memóriacímek lemásolását jelenti. \\ \textit{Ez a legtöbb esetben nem jó nekünk, hiszen ha a forrásobjektumot destruáljuk, az felszabadítja azt az erőforrást is (pl. deallokálja a tömböt), amire a másolat mutat. Így ha a másolatot használnánk a destrukció után, dereferálni fogjuk, ami szegmentációs hibát fog eredményezni.}
+	
+	\item \textbf{Mély másolás} (\textit{deep copy}): a heapen allokált erőforrásokból új példányt készít a másolat számára. Így ugyanazon adathalmazból valóban még egy példány fog létrejönni a memóriában.
+\end{enumerate}
+
+Elevenítsük fel, hogy a copy konstruktor \textbf{inicializáció} során fut le, ami csak egyszer fog bekövetkezni az objektum élettartama során. Tehát nem kell deallokálnunk semmit.
+
+\begin{lstlisting}[style=cppstyle]
+class Array {
+	// ... 
+public:
+	// ctor, dtor
+	
+		// copy ctor
+		Array(const Array& other) : capacity(other.capacity) {
+			data = new int[capacity];
+			
+			for (int i = 0; i < capacity; i++) {
+				data[i] = other.data[i];
+			}
+		}
+};
+\end{lstlisting}
+
+\subsection{Értékadó operátor}
+
+Értékadó operátorból \textit{több létezik}, ezt a primitív típusoknál is tapasztalhattuk (\verb*|=|, \verb*|+=|, stb.). Általános jellemzőik, hogy módosítják azon objektum értékét, amire meghívjuk. Az egyszerű értékadó operátort a szabvány \textbf{másoló értékadó operátor}nak (\textit{copy assignment operator}) nevezi. Mi azonban ezt egyszerűen \textit{az} értékadó operátornak fogjuk hívni.
+
+Az értékadó operátor abban az esetben lép életbe, ha \textbf{van két deklarált és inicializált objektumunk, és az egyiket értékül akarjuk adni a másiknak}. A célunk, hogy \textit{mély másolás}t hajtson végre az operátor, viszont ügyelnünk kell arra, hogy \textbf{felszabadítsuk a heapen allokált tárhelyet} szükség esetén.
+
+\begin{tcolorbox}[title={\textbf{Értékadó operátor}}]
+	Az értékadó operátorok \textbf{módosítják az objektum értékét}.
+	
+	Minden beépített értékadó operátor \verb*|*this|\textbf{szel tér vissza} és a legtöbb felhasználó által definiált túlterhelés is ezzel tér vissza, hogy ugyanúgy lehessen használni őket, mint a beépítetteket.\footnote{A definíció eredeti angol változata: \url{https://en.cppreference.com/w/cpp/language/operator_assignment}}
+	
+	\begin{lstlisting}[style=cppstyle]
+T t01, t02;		// default constructor
+				// equivalent to: T t01 = T(); T t02 = T();
+		
+t02 = t01;		// assignment operator
+				// equivalent to: t02.operator=(t01);
+	\end{lstlisting}
+\end{tcolorbox}
+
+Ne feledjük, hogy az operátor egy \verb*|Array| típusú \textbf{referenciával tér vissza}, ezért a mutatót dereferálnunk kell a végén.
+
+Ami a kódolási stílust illeti; egyesek egybeírják az \verb*|operator| kulcsszót az operátor nevével (\verb*|operator=(...)|), míg mások szóközzel választják el a kettőt (\verb|operator =(...)|).
+
+\begin{lstlisting}[style=cppstyle]
+class Array 
+{
+	// ... 
+		
+	// assignment operator
+	Array& operator=(const Array& other) {
+		if (this != &other) {
+			delete[] data;
+			capacity = other.capacity;
+			data = new int[capacity];
+			
+			for (int i = 0; i < capacity; i++) {
+				data[i] = other.data[i];
+			}
+		}
+	
+		return *this;
+	}
+};
+\end{lstlisting}
+
+Hogy markánsabban meglássuk a különbséget a másoló konstruktor és az értékadó operátor között, nézzük meg ezt a példát!
+
+\begin{lstlisting}[style=cppstyle]
+Array a01(4); Array a02(5);	// we've initialised a01 and a02
+
+Array a03(a01);				// a03 is initialised (copy ctor)
+							// normally: Array a03 = a01;
+							
+a01.operator=(a02);			// a01 is assigned to a02
+							// normally: a01 = a02;
+\end{lstlisting}
+
+\section{Getterek és setterek}
+
+A C++ nem támogat speciális szintaxist a getterek, setterek számára (hasonlóan a Javához, de ellentétben a C\#-pal), így a hagyományos megoldásokkal tudjuk őket megírni.
+
+\begin{lstlisting}[style=cppstyle]
+class Array {
+	// ...
+	
+	int get_capacity() { 
+		return capacity; 
+	}
+	
+	void set_capacity(int value) {
+		capacity = value;
+	}
+};
+\end{lstlisting}
+
+A mi esetünkben nincs semmi értelme a kapacitás setterét megírni -- sőt, különösen veszélyes ötlet --, csupán a szemléltetés miatt írtam meg.
+
+Foglalkozzunk egy kicsit a getterrel. Vegyük szemügyre az alábbi példát.
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+
+// defintion of class Array
+
+void print_capacity(Array array) {
+	std::cout << array.get_capacity() << std::endl;
+}
+
+int main() {
+	Array array(5);
+	print_capacity(array);
+	return 0;
+}
+\end{lstlisting}
+
+Hibátlanul lefordul; ha kipróbáljuk, megkapjuk, hogy \verb*|5|. Viszont tudunk módosítani a \verb*|print_capacity| függvényen.
+\begin{itemize}
+	\item A paramétert adjuk át referenciaként, ugyanis nyers érték szerinti átadással lemásolódik a teljes objektum a copy konstruktorral -- ami költséges.
+	\item A függvény nem módosítja a paraméter semmilyen értékét, úgyhogy adjuk át konstansként.
+\end{itemize}
+
+A módosított függvény tehét így fog kinézni.
+
+\begin{lstlisting}[style=cppstyle]	
+void print_capacity(const Array& array) {
+	std::cout << array.get_capacity() << std::endl;
+}
+\end{lstlisting}
+
+Ebben az esetben viszont hibát dob a fordító.
+
+\begin{framed}
+	\begin{verbatim}
+		pointarray.cpp: In function ‘void print_capacity(const Array&)’:
+		pointarray.cpp:66:40: error: passing ‘const Array’ as ‘this’ argument 
+		                             discards qualifiers [-fpermissive]
+		66 |         std::cout << array.get_capacity() << std::endl;
+		   |                      ~~~~~~~~~~~~~~~~~~^~
+		pointarray.cpp:56:13: note:   in call to ‘int Array::get_capacity()’
+		56 |         int get_capacity()
+		   |             ^~~~~~~~~~~~
+	\end{verbatim}
+\end{framed}
+
+A hibaüzenet szerint megsértettük az objektum konstansságát. Konstans referencián nem hajthatunk végre módosításokat, ez világos. A \verb*|get_capacity| tagfüggvény nem hajt végre semmilyen módosítát, ezt is jól tudjuk. Akkor mégis miért sértjük meg a konstansságát?
+
+Cseréljük ki a függvényben a gettert a setterre és a probléma máris egyértelműbbé válik. A kinyomtatós parancsoktól egy pillanatra szabaduljunk meg.
+
+\begin{lstlisting}[style=cppstyle]	
+void print_capacity(const Array& array) {
+	array.set_capacity(42);
+}
+\end{lstlisting}
+
+\begin{framed}
+	\begin{verbatim}
+		pointarray.cpp: In function ‘void print_capacity(const Array&)’:
+		pointarray.cpp:66:40: error: passing ‘const Array’ as ‘this’ argument 
+		                             discards qualifiers [-fpermissive]
+		66 |         array.set_capacity(42);
+		   |         ~~~~~~~~~~~~~~~~~~^~
+		pointarray.cpp:56:13: note:   in call to ‘void Array::set_capacity(int)’
+		56 |         void set_capacity(int value)
+		   |             ^~~~~~~~~~~~
+	\end{verbatim}
+\end{framed}
+
+A fordító nem tudja eldönteni, hogy mikor módosítja a metódus az objektum belső állapotát, mikor nem. Nincs semmi garancia arra, hogy a getter ne módosítsana valamit a háttérben. Ezt \textbf{úgy tudjuk feloldani, ha a getter függvényszignatúrája és -törzse közé beírjuk a} \verb*|const| \textbf{kulcsszót}. Így az eredeti függvényünk le fog fordulni.
+
+\begin{lstlisting}[style=cppstyle]	
+class Array {
+	// ...
+	
+	int get_capacity() const { // 'const' keyword is inserted
+		return capacity; 
+	}
+};
+\end{lstlisting}
+
+\section{A \texttt{[]} és a \texttt{()} operátor}
+
+A \verb*|[]| (négyzetes zárójel vagy indexelő) operátort (angolul néha \textit{array subscript operator}) a tömbszerű adatszerkezeteknél használjuk, hogy az $i$-edik indexű elemét lekérjük. Tartsuk észben, hogy ennek kizárólag egy paramétere lehet (a C-s örökség miatt).
+
+Lássuk be, hogy a \verb*|[]|-nak két feladata van, amik ellentmondásosak.
+
+\begin{itemize}
+	\item Írjuk felül az $i$-edik indexen tárolt adatot. Pl. \verb|data[i] = 42;| \\ Ez egy \textit{setter}szerű viselkedés.
+	\item Kérdezzük le az $i$-edik indexet módosítás nélkül. Pl. \verb|int temp = data[i];| \\ Ez egy \textit{getter}szerű viselkedés.
+\end{itemize}
+
+A második esetben garantálnunk kell, hogy a metódus ne módosítsa a tömb belső értékét -- hasonlóan a korábbi példához --, ezért jelölnünk kell a végén a \verb*|const| kulcsszóval.
+
+\begin{lstlisting}[style=cppstyle]
+class Array {
+	// ...
+	
+	// when we modify the data at the specified index
+	int& operator[](int index) { 
+		return data[index]; 
+	}
+	
+	// when we retrieve the data at the specified index
+	const int& operator[](int index) const { 
+		return data[index]; 
+	}
+}
+\end{lstlisting}
+
+Mivel a C-ben csak egy értéket adhatunk meg a zárójelek között -- ellentétben C\#-ban, ahol egy mátrix indexelése megoldható így: \verb|matrix[i, j]| --, ezért mátrixok esetén más megoldáshoz kell folyamodnunk. Erre fog megoldást jelenteni a \verb*|()| (gömbölyű zárójel) operátor (angolul néha \textit{function call operator}).
+
+\begin{lstlisting}[style=cppstyle]
+class Matrix 
+{
+	// implementation details
+	
+	int& operator()(int i, int j) { return data[i][j]; }
+	
+	const int& operator()(int i, int j) const { 
+		return data[i][j]; 
+	}
+};
+
+int main() {
+	Matrix m(5, 5);
+	m(1, 2) = 42;
+	return m(1, 2);
+}
+\end{lstlisting}
+
+Minden típust, amely implementálja a \verb*|()| operátort, \textbf{funktor}nak (\textit{function operator}, \textit{functor}) nevezünk. Rájuk a következő fejezetben vissza fogunk térni.
+
+\section{Statikus adattagok és tagfüggvények}
+
+C\#-ból, Javából már ismerős lehet a \verb*|static| kulcsszó. Adattagok és metódusok esetében az osztályszintűséget jelöli, azaz \textbf{nem egy specifikus objektumra, példányra, hanem a teljes osztályra vonatkozik}.
+
+Azt is tudjuk, hogy a C++ már rendelkezik egy \verb*|static| kulcsszóval, aminek a kontextusai már eleve elég körülményesek voltak. Erre rátesz még egy lapáttal az objektumorientáltsága a nyelvnek, mivel osztályok esetében a megszokott jelentésekkel rendelkezik. \textit{A használatuk} azonban kicsit \textit{eltér} az előbb említett nyelvektől.
+
+Adjunk az \verb*|Array| osztályunkhoz egy statikus privát adattagot, ami nyomonköveti, hány példánya él az osztálynak. Mivel privát adattagról van szó, írjunk neki egy nyilvános gettert -- és ha már getter, írjuk hozzá a \verb*|const| kulcsszót.
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+
+class Array {
+private:
+	int capacity;
+	int* data;
+	static int count;	// private static member field
+
+public: 
+	Array(int capacity) {
+		if (capacity == 0) capacity  = 1;
+		if (capacity < 0)  capacity *= (-1);
+		
+		this->data = new int[capacity];
+		this->capacity = capacity;
+		this->count++; 	// increase number of instances
+	}
+	// ...
+	
+	// static member function
+	static int get_count() const { return count; }
+};
+
+int main() {
+	Array array(5);
+	std::cout << Array::get_count() <<std::endl;
+}
+\end{lstlisting}
+
+Fordítás során hibaüzenetet kapunk. Azt írja, hogy statikus tagfüggvények nem rendelkezhetnek \textit{cv-minősítőkkel} (cv = \verb*|const| és \verb*|volatile|).
+
+\begin{framed}
+	\begin{verbatim}
+		pointarray.cpp:62:32: error: static member function 
+		                             ‘static int Array::get_count()’ 
+		                             cannot have cv-qualifier
+		62 |         static int get_count() const { return count; }
+		   |                                ^~~~~
+	\end{verbatim}
+\end{framed}
+
+A statikus tagfüggvények nem egy konkrét példányra vonatkoznak, hanem a teljes osztályra, ezért nincs értelme a konstansságot nézni -- \textbf{nyugodtan kivehetjük a kulcsszót}.
+
+Ha így futtatjuk le, akkor egy még csúnyább, még olvashatatlanabb hibaüzenetet kapunk. A sok mangled névből és temporárius fájlnévből kiszűrhetjük, hogy a konstruktor (\verb|in function `Array::Array(int)'|) egy definiálatlan hivatkozást talál \\ (\verb|undefined reference to `Array::count'|) a \verb*|count| (statikus) adattagra. Ezt még a \verb*|get_count| függvénynél is kiírja.
+
+\begin{framed}
+	\verbatimfontsize
+	\begin{verbatim}
+		/usr/bin/ld: /tmp/ccSIlVLV.o: warning: relocation against `_ZN5Array5countE' 
+		in read-only section `.text._ZN5Array9get_countEv[_ZN5Array9get_countEv]'
+		/usr/bin/ld: /tmp/ccSIlVLV.o: in function `Array::Array(int)':
+		pointarray.cpp:(.text._ZN5ArrayC2Ei[_ZN5ArrayC5Ei]+0x66): 
+		undefined reference to `Array::count'
+		/usr/bin/ld: pointarray.cpp:(.text._ZN5ArrayC2Ei[_ZN5ArrayC5Ei]+0x6f): 
+		undefined reference to `Array::count'
+		/usr/bin/ld: /tmp/ccSIlVLV.o: in function `Array::get_count()':
+		pointarray.cpp:(.text._ZN5Array9get_countEv[_ZN5Array9get_countEv]+0xa): 
+		undefined reference to `Array::count'
+		/usr/bin/ld: warning: creating DT_TEXTREL in a PIE
+		collect2: error: ld returned 1 exit status
+	\end{verbatim}
+\end{framed}
+
+Itt ismét fel kell idéznünk a változók láthatóságát és élettartamát. Az objektumon belüli adattagok a példányosítás során jönnek létre és az objektum destruálásáig élnek. Azonban a \textbf{statikus adattag} jelentése az, hogy osztályszintű, tehát a program teljes életciklusa folyamán láthatónak és elérhetőnek kell lennie. Emiatt úgy kell \textbf{az osztályon kívül definiálnunk, mintha egy globális változó lenne}.
+
+\begin{lstlisting}[style=cppstyle]
+class Array {
+private:
+	int capacity;
+	int* data;
+	static int count;	// private static member field
+		
+public:  // ...
+	static int get_count() const { return count; }
+};
+
+int Array::count = 0;	// definition of private static variable
+\end{lstlisting}
+
+Azért mondom, \textit{mintha} globális lenne, mivel egy tisztán globális változó nem tartozik egy blokkhoz sem. Viszont itt a \verb*|private| kulcsszó az osztályra korlátozza a láthatóságot, így egy ilyen kódrészlet fordítási hibát dobna.
+
+\begin{lstlisting}[style=cppstyle]
+// ...
+
+int main() {
+	Array array(5);
+	
+	// calling a public static member function -> OKAY
+	std::cout << Array::get_count() <<std::endl;
+	
+	// referencing a private static member field -> ERROR
+	std::cout << Array::count <<std::endl;
+	
+	return 0;
+}
+\end{lstlisting}
+
+\section{Típuskonverziós operátorok}
+
+Írjunk egy olyan kasztoló operátort az osztályunknak, ami egy hagyományos \verb*|int| pointerré konvertálja a tömbünket. A szintaxisa \verb|int* traditional_array = (int*)array;| legyen.
+
+A kasztoló operátorok a következőképp néznek ki: \verb|operator type_to_cast_to() {...}|. \textbf{Nem írjuk ki a visszatérési értékét}, a gömbölyű zárójel üres, a \verb*|type_to_cast_to| meg állhat több elemből is (mint itt is, a \verb*|*| a végén).
+
+A végén akár jelezhetjük is, hogy a tagfüggvény nem módosítja a belső állapotot.
+
+\begin{lstlisting}[style=cppstyle]
+class Array 
+{
+// ...
+
+	operator int*() const 
+	{
+		int* traditional = new int[capacity];
+		
+		for (int i = 0; i < capacity; i++)
+			traditional[i] = data[i];
+		
+		return traditional;
+	}
+};
+\end{lstlisting}
+
+Ugyanezzel az egyszerűséggel implementálhatjuk a \verb*|toString|nek megfelelő szöveggé konvertáló operátort. Itt a trükk annyi, hogy szükségünk lesz a C++ \verb*|StringBuilder| típusára, amit a \verb*|<sstream>| könyvtárból a \verb*|std::ostringstream| típus garantál. A \verb*|<<| operátor segítségével tudunk konkatenálni. Természetesen a sztringhez szükséges \verb*|<string>| könyvtárat include-olnunk kell.
+
+\begin{lstlisting}[style=cppstyle]
+#include <string>
+#include <sstream>
+
+class Array 
+{
+// ...
+		
+	operator std::string() const 
+	{
+		std::ostringstream str;
+		str << "{ ";
+			
+			for (int i = 0; i < capacity; i++) 
+			{
+				str << data[i];
+				
+				if (i != capacity - 1) str << ", ";
+			}
+			
+			str << " }";
+		
+		return str.str();
+	}
+};
+\end{lstlisting}
+
+\section{Kiíratás a standard outputra}
+
+A típusunkat mostmár képesek vagyunk szöveggé konvertálni, amit felhasználhatunk kiíratásnál.
+
+\begin{lstlisting}[style=cppstyle]
+Array array(5);
+for (int i = 0; i < array.get_capacity(); i++) array[i] = 42;
+std::cout << (std::string)array << std::endl; 
+// { 42, 42, 42, 42, 42 }
+\end{lstlisting}
+
+Milyen üdvös volna, ha kasztolás nélkül ugyanezt el tudnánk érni! A válasz az, hogy ez megoldható, csupán a \verb*|<<| operátort kell implementálnunk.
+
+A \verb*|<<| operátor két paramétert vár. Bal oldalán egy \verb*|std::ostream&| (output stream) \textbf{kimeneti adatfolyam referenciát}\footnote{Ebből látható, hogy a \verb*|std::cout| típusa \verb*|std::ostream|.}, a jobb oldalán meg a \textbf{kívánt típusú objektum konstans referenciáját}. A kérdés már csak annyi, hogy ki birtokolja a függvényt?
+
+Ha az osztály birtokolja, akkor a kifejezés kiértékelése során nem találja meg az \verb*|array|nek a(z) \verb*|<<| operátorát, így végeredményül csak az objektum memóriacímét fogjuk megkapni.
+
+\begin{lstlisting}[style=cppstyle]
+class Array {
+	// ...
+	std::ostream& operator<<(std::ostream& out) {
+		out << (std::string)(*this);
+		return out;
+	}
+};
+
+int main() {
+	Array array(5);
+	for (int i = 0; i < array.get_capacity(); i++) array[i] = 42;
+	std::cout << (std::string)array << std::endl; 
+	// 0x55acf5142ef0
+}
+\end{lstlisting}
+
+A másik lehetőségünk az az, ha az \verb*|std::ostream| osztályában írjuk meg ezt a metódust... Biztosan ezt akarjuk?
+
+Létezik egy harmadik megoldás, mégpedig hogy globális függvényként írjuk meg.
+
+\begin{lstlisting}[style=cppstyle]
+std::ostream& operator<<(std::ostream& out, const Array& array) {
+	out << (std::string)array;
+	return out;
+}
+int main() {
+	Array array(5);
+	for (int i = 0; i < array.get_capacity(); i++) array[i] = 42;
+	std::cout << array << std::endl; // OK
+}
+\end{lstlisting}
+
+Így már helyes eredmény kapunk.
+
+Az figyelhető meg, ha egy operátor két oldalán eltérő típusú objektumok szerepelhetnek, akkor az operátor túlterhelését globális függvénnyel oldjuk meg.
+
+\section{A \texttt{friend} kulcsszó}
+
+A gyakorlati tapasztalataink szerint a legtöbb adatszerkezet nem támogatja, hogy direkt módon \texttt{std::string}gé lehessen konvertálni a példányait. De továbbra is szeretnénk, hogy a szabványos kimenetre ki tudjuk nyomtatni a tartalmát.
+
+Ha megszabadulunk a kasztoló operátorunktól, akkor a globálisan túlterhelt \verb*|<<| operátorunk már nem fog működni, ugyanis ettől függ a működése. Megoldhatjuk, hogy ennek a függvénytörzsében történjen a konverzió, viszont ehhez olyan adattagokra van szükségünk, amik privátak, nem tudjuk elérni őket.\footnote{Valójában az \texttt{Array} osztály esetében pont nincs szükségünk a privát adattagok elérésére, ugyanis a megfelelő getterek, setterek mind nyilvánosak. Ez azonban nem minden esetben adott, így érdemes ismerni a \textbf{barát (\texttt{friend}) függvények}et}
+
+\begin{lstlisting}[style=cppstyle]
+std::ostream& operator<<(std::ostream& out, const Array& array) {
+	std::ostringstream str;
+	str << "{ ";
+		
+	for (int i = 0; i < array.capacity; i++) { // !
+		str << array.data[i]; // !
+		if (i != array.capacity - 1) str << ", "; // !
+	}
+		
+	str << " }";
+	out << str.str();
+	return out;
+}
+\end{lstlisting}
+
+Az olyan szituációt, amikor \textbf{egy globális függvénynek egy osztály privát adattagjai számára kell láthatóságot biztosítanunk, a barát (\texttt{friend}) függvényekkel tudjuk megoldani}. Az ilyen függvények deklarációit az osztályon belül helyezzük el, a definícióit (jellemzően) kívül írjuk meg.
+
+Az osztályunk az alábbi módon bővül.
+
+\begin{lstlisting}[style=cppstyle]
+class Array
+{
+	// ...
+	// cast operator to std::string is deleted
+	
+	// declaration of friend function
+	friend std::ostream& operator<<(std::ostream& out, 
+									const Array& array);
+};
+
+// definition withopud the 'friend' keyword
+std::ostream& operator<<(std::ostream& out, const Array& array) 
+{ ... }
+\end{lstlisting}
+
+\newpage
+
+\section{Öröklődés / Származtatás}
+
+Az öröklődéssel már találkoztunk korábbi tanulmányaikból (C\#, Java), így a koncepció nem új. A származtatott osztály rendelkezik ugyanazokkal az adattagokkal és tagfüggvényekkel, amit az ősosztálytól... nos, örökölt. A gyerekosztály rendelkezhet ezehfelül még más adattagokkal / metódusokkal, de azokat az ősosztály nem kapja meg.
+
+Vegyük az alábbi példát! Írjunk egy üres \verb*|Shape| (síkidom) osztályt (ne feledjük, hogy a fordító generál nekünk 4 tagfüggvényt, így nem teljesen üres az, amit kapunk). Származtassunk le belőle egy \verb*|Circle| (kör) és egy \verb*|Rectangle| (négyzet) osztályt. Mindketten rendelkezzenek a szükséges adattagokkal, konstruktorrak és legyen területszámító tagfüggvényük (\verb*|area|).
+
+\begin{lstlisting}[style=cppstyle]
+class Shape {};
+
+class Circle : public Shape // !
+{
+	double radius;
+	
+public:
+	Circle(int radius = 1)
+	{
+		if (radius < 0) radius *= -1;
+		this->radius = radius;
+	}
+	
+	double area() { return 3.14 * radius * radius; }
+};
+
+class Rectangle : public Shape // !
+{
+	double width, height;
+	
+public:
+	Rectangle(double width = 1, double height = 1)
+	{
+		if (width < 0) width *= -1;
+		if (height < 0) height *= -1;
+		
+		this->width = width;
+		this->height = height;
+	}
+	
+	double area() { return width * height; }
+};
+\end{lstlisting}
+
+Az eddigi nyelvekkel ellentétben, a C++-ban \textbf{származtatásnál ki kell írnunk a \texttt{public} kulcsszót a \texttt{:} operátor után}. Az alábbi tesztprogrammal próbáljuk ki az osztályainkat
+
+\begin{lstlisting}[style=cppstyle]
+int main() {
+	Shape shapes[5];
+	return 0;
+}
+\end{lstlisting}
+
+A programunk egyelőre nem csinál semmi értelmeset, ugyanakkor lefordul -- hibamentesnek tűnik. Ismét elevenítsük fel, hogy a tömb deklarációja esetében is lefut elemenként a default konstruktor (azaz paraméter nélküli, amit a compiler generál(hat)). Módosítsuk a feladatot úgy, hogy adjuk össze az összes síkidom területét!
+
+\begin{lstlisting}[style=cppstyle]
+int main() {
+	Shape shapes[5]; 
+	double area_sum = 0;
+	
+	for (int i = 0; i < 5; i++) {
+		area_sum += shapes[i].area(); 
+		// error: no area() member function in class 'Shape'
+	}
+
+	return 0;
+}
+\end{lstlisting}
+
+Ekkor hibát kapunk, ugyanis a \verb*|Shape| osztályunk üres, nem rendelkezik a megfelelő tagfüggvénynel. Adjunk neki egyet, ami visszatért egy alapértelmezett értékkel. Így végeredményül nullát kell kapjunk.
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+
+class Shape {
+public:
+	double area() { return 0; }
+};
+
+// ...
+
+int main() {
+	Shape shapes[5]; 
+	double area_sum = 0;
+	
+	for (int i = 0; i < 5; i++) {
+		area_sum += shapes[i].area(); 
+	}
+
+	std::cout << area_sum << std::endl	// result: 0
+	
+	return 0;
+}
+\end{lstlisting}
+
+\subsection{Statikus, dinamikus típus}
+
+Most rakjunk a tömbbe eltérő típusú, eltérő méretű síkidomokat. Vajon valóban a síkidomok területeinek összegét kapjuk meg?
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+	
+int main() {
+	Shape shapes[5]; 
+	shapes[0] = Circle(5);		 // 78.54
+	shapes[1] = Rectangle(4, 2); // 8
+	shapes[2] = Circle();    	 // 3.14
+	shapes[3] = Rectangle(); 	 // 1.0
+	double area_sum = 0;	
+	for (int i = 0; i < 5; i++) {
+		area_sum += shapes[i].area();
+	}
+		
+	std::cout << area_sum << std::endl // supposed to be 90.68
+	// but 0 is returned
+	
+	return 0;
+}
+\end{lstlisting}
+
+Az igazság az, hogy nem, 0-át kapunk. És a nyelv szabályai szerint is ezt az eredményt kell kapjuk.
+
+Itt bevezetünk két új fogalmat. Öröklődés esetében egy \verb*|T| típusú változónak lehet \textbf{statikus és dinamikus típus}a. \textbf{Statikus típusnak nevezzük azt, amit fordítási időben ismer meg a compiler. Dinamikus típus pedig az, ami futtatási időben derül ki -- ahol ez a típus egy altípusa a \texttt{T}-nek}.
+
+Például: a \verb*|shapes[0]| változónak a statikus típusa \verb*|Shape|, hiszen ez szerepel közvetlenül a kódban, de a dinamikus típusa \verb*|Circle|. Amikor végigiterálunk a tömb összes elemén és tfh. nem egyértelmű a fordító számára, hogy melyik tagfüggvényt kell meghívnia, alapértelmezetten a statikus típusának megfelelőt fogja választani.
+
+\subsection{Object slicing}
+
+Ezt úgy tudjuk feloldani, ha az ősosztály megfelelő függvényét virtuálisnak állítjuk be. Ezt a \verb*|virtual| kulcsszóval tudjuk elérni. Ennek a párja a származtatott osztályokban az \verb*|override|, de ezt C++11-ben vezették be, tehát nem használjuk.
+
+\begin{lstlisting}[style=cppstyle]
+class Shape {
+public:
+	virtual double area() { ... }
+};
+
+class Circle : public Shape {
+	// ...
+	double area() override { ... } // since C++11
+};
+
+class Circle : public Rectangle {
+	// ...
+	double area() { ... } // works fine without it
+};
+\end{lstlisting}
+
+Sajnos, még így is rossz eredményt kapunk. A probléma a típusok méretében gyökerezik. Egyértelmű, hogy \texttt{sizeof(Shape) < sizeof(Circle)} és \texttt{sizeof(Shape) < sizeof(Rectangle)}, hiszen a \texttt{Shape}-nek nincs egy adattagja sem, a \texttt{Circle}-nek és a \texttt{Rectangle}-nek meg rendre 1, 2. Tehát a tömb nem foglal le elegendő memóriát arra, hogy az altípusú objektumok beleférjenek. 
+
+\textbf{Ha lennének közös adattagjaik (amit az őstől örökölnének), akkor ezek bekerülnének a tömbbe, de ami túlhalad ezen, az már nem}. Ezt a jelenséget nevezzük \textbf{object slicing}nak és ez az oka, amiért a területek összege nulla marad.
+
+Például, ha a \verb*|Shape| eltárolná a középpontjának koordinátáját (a korábbi \verb*|Point| osztály segítségével), akkor a tömb eltárolná az egyes altípusú objektumok saját koordinátáit, de sem a sugárt, sem az oldalakat meghatározó adattagokhoz nem jutna már hozzá.
+
+Ennek egy lehetséges megoldása lehet, ha a tömb nem közvetlenül az objektumokat, hanem a memóriacímüket tárolná el. A mi példánkban gondoskodnunk kell, hogy elkerüljük az inicializálatlan pointereket, ugyanis ezek dereferálása szegmentációs hibához vezet.
+
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+
+// ...
+
+int main() 
+{
+	Shape* shapes[5];	// array of pointers
+		
+	Circle c1(5); 		// 78.54
+	Circle c2;    		// 3.14
+	Rectangle r1(4, 2); // 8.0
+	Rectangle r2;       // 1.0
+	Shape sh;			// 0.0
+		
+	shapes[0] = &c1;
+	shapes[1] = &c2;
+	shapes[2] = &r1;
+	shapes[3] = &r2;
+	shapes[4] = &sh;
+		
+	double area_sum = 0;
+		
+	for (int i = 0; i < 5; i++) {
+		area_sum += shapes[i]->area(); // !!!
+	}
+		
+	std::cout << area_sum << std::endl // 90.64 (+ rounding errors)
+		
+	return 0;
+}
+\end{lstlisting}
+
+\subsection{Interfészek, absztrakt osztályok}
+
+Más objektumorientált programozási nyelvekkel ellentétben, a \textbf{C++ nem nyújt nyelvi konstrukciót interfészek és absztrakt osztályok kialakítására}. Azonban hasonló viselkedést ugyanúgy el tudunk érni. Gondoljunk csak bele; a \verb*|Shape| osztályunk tulajdonképpen egy interfésznek felel meg a legtöbb nyelvben (feltéve, hogy ignoráljuk az \verb*|area| metódus függvénytörzsét).
+
+\chapter{Sablonok és az STL}
+
+\section{Sablonok (template-ek)}
+
+A sablonok (\textit{template}-ek) segítenek abban, hogy olyan \textbf{algoritmusokat és adatszerkezetek írjunk, amik bármilyen típussal működnek}. Közvetlenül a deklarációt megelőző sor előtt meg kell határoznunk a használandó típusparamétereket. Ezeket a \verb*|template| kulcsszóval kezdve, \verb*|<>| zárójelen belül a \verb*|typename| kulcsszóval adjuk meg. Egyszerre több típusparamétert is megadhatunk.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T> // template function
+void template_function(const T& var) { ... }
+
+template <typename T, class U> // template class
+class TemplateClass
+{
+	T* data;
+	U  variable;
+	// ...
+};
+\end{lstlisting}
+
+A \verb*|typename| kulcsszó helyett használhatjuk a \verb*|class| kulcsszót is. A jelentésük megegyezik, pusztán kódstílus és konvenció kérdése, mikor melyiket használjuk.
+
+Amikor felhasználunk egy template-osztályt / algoritmust a kódunkban, akkor a programunkban \textbf{példányosul} egy olyan változata, ami az adott típusparaméter szerint jön létre. Függvények esetén a fordító a paraméterekből találja ki a példányosítandó változatot. Ezt a folyamatot \textbf{template argumentum dedukció}nak nevezzük (ez osztályoknál nem működik). 
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T>
+void template_function(const T& var) { ... }	
+template <typename T, class U>
+class TemplateClass { ... }	
+int main() {
+	template_function(42);	// instantiation with type 'int'
+	TemplateClass<int, double> tc; 
+	// instantiation with types 'int' and 'double'
+	return 0;
+}
+\end{lstlisting}
+
+\subsection{Sablonfüggvények}
+
+Nem mindig egyértelmű, hogy mikor melyik típust kell használnia a függvénynek. Ha nem tud dönteni a fordító, fordítási hibát kapunk.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T>
+T max(T a, T b) { return a < b ? a : b; }
+int main() { return max(1, 1.5); } // 'int' or 'double' ??
+\end{lstlisting}
+
+A megoldás, hogy meghatározzuk expliciten a \verb*|<>| operátorral, hogy milyen típust használjon (tehát nem hagyjuk érvényesülni a sablonargumentum dedukciót).
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T>
+T max(T a, T b) { return a < b ? a : b; }
+int main() { 
+	double x = max<double>(1, 1.5);
+}
+\end{lstlisting}
+
+Figyeljük meg, hogy a függvényünk azt feltételezi, hogy a típusunk rendelkezik relációsjel műveletekkel. Nem okoz-e gondot, hogyha olyan típust adunk meg, ami nem rendelkezik ezekkel? 
+
+A válasz az, hogy de, és ez fordítási időben ki is derül -- jellemzően valami gusztustalanul hosszú hibaüzenet formájában. A fordító végigmegy a függvény kódján, behelyettesíti a típust, és ha azt tapasztalja, hogy a szóban forgó típusnak nincs definiálva a szükséges operátor, akkor hibát dob. Ugyanez a helyzet, ha olyan adattagra / tagfüggvényre hivatkozunk egy osztály- vagy struktúratípusnál, amije valójában nem létezik.
+
+Ezt nevezzük \textbf{duck typing}nak (``\textit{If it walks like a duck and it quacks like a duck, then it must be a duck.}'').
+
+\begin{lstlisting}[style=cppstyle]
+struct S {}; // has no '<' operator
+template <typename T>
+T max(T a, T b) { return a < b ? a : b; }
+	
+int main() { 
+	S s01, s02;
+	S s = max(s01, s02); // error
+}
+\end{lstlisting}
+
+Más nyelvekkel ellentétben (Java, C\#), a C++-ban nem határozzuk meg expliciten az ilyen típusra vonatkozó különleges előfeltételeket. A fordítás közben derül ki.
+
+Emiatt belátható, hogy a \textbf{sablonok fordítása hosszadalmas}, ugyanis \textbf{kétszer kell végigmennie a kódján}; először behelyettesíti a típust, másodszor szemantikailag elemzi az így kapott kódot.
+
+Van lehetőségünk a függvény paraméterezésére is.
+
+\begin{lstlisting}[style=cppstyle]
+template <int i>
+int add_param(int x) { return x + i; }
+
+int main() {
+	int example01 = add_param<5>(1);  // 6
+	int example03 = add_param<42>(0); // 42
+}
+\end{lstlisting}
+
+Így viszont két példánya lesz a függvénynek a lefordult kódban: lesz egy 5-tel paraméterezett és egy 42-vel paraméterezett változata.
+
+Ha a kódunk tartalmazza egy template paraméterrel rendelkező függvény / osztály definícióját, de \textbf{nem használjuk fel sehol sem, akkor nem történik meg a példányosítás}, azaz a bináris futtatható fájlban le se generálódik ennek a kódja.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T> // unused template function
+void template_function(const T& var) { ... }
+int main() { return 0; } // no instantiation occurred
+\end{lstlisting}
+
+\subsection{Sablonosztályok}
+
+Írjuk meg az \verb*|Array| osztályunknak a template-es változatát. Nincs más dolgunk, mint a megfelelő \verb*|int|eket kicseréljük \verb*|T|-kre.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T>
+class Array 
+{
+private:
+	T* data; // !
+	int capacity;
+	static int count;
+
+public:
+	Array(int capacity) {
+		if (capacity == 0) capacity  = 1;
+		if (capacity < 0)  capacity *= (-1);
+		
+		this->data = new T[capacity]; // !
+		this->capacity = capacity;
+		this->count++;
+	}
+
+	// replace 'new int[...]' with 'new T[...]'
+	
+	T& operator[](int index) { return data[index]; } // !
+	
+	const T& operator[](int index) const 
+	{ return data[index]; } // !
+	
+	operator T*() const { // !
+		T* traditional = new T[capacity]; // !
+		
+		for (int i = 0; i < capacity; i++)
+			traditional[i] = data[i];
+		
+		return traditional;
+	}
+};
+
+template <typename T> // don't forget about global functions...
+std::ostream& operator<<(std::ostream& out, const Array<T>& array) 
+{
+	out << (std::string)array;
+	return out;
+}
+
+template <typename T> // ...and static variables
+int Array<T>::count = 0; // !
+\end{lstlisting}
+
+A feladat a következő: oldjuk meg azt, hogy ha az osztályt \verb*|int| típussal példányosítjuk, akkor működjön teljesen másképp -- azaz, csak egyetlen számot tudjunk tárolni benne, rendelkezzen statikus adattaggal, tudjuk a megszokott módon kasztolni, de ne rendelkezzen a \verb*|[]| operátorral. Ezt \textbf{template specializáció}val tudjuk elérni.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T> // original class
+class Array { ... };
+
+// nothing between them
+
+template <> // !!
+class Array<int> // template specialisation
+{
+private:
+	int data;
+	int capacity;
+	static int count;
+	
+public:
+	Array(int data = 0) {
+		this->data = data;
+		this->capacity = 1;
+		this->count++;
+	}
+	
+	// converting to 'int' is enough
+	operator int() const { return data; }
+};
+
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const Array<T>& array) 
+{ // original 
+	out << (std::string)array;
+	return out;
+}
+
+std::ostream& operator<<(std::ostream& out, 
+                         const Array<int>& array) 
+{ // specialisation
+	out << (int)array;
+	return out;
+}
+
+template <typename T>
+int Array<T>::count = 0;	// original
+int Array<int>::count = 0;	// specialisation
+\end{lstlisting}
+
+Próbáljuk ki a specializációnak a funkcionalitásait! Azt mondtuk, hogy ne rendelkezzen \verb*|[]| operátorral -- azonban a getterekről nem említettünk semmit. Mivel a specializáció nem ismeri az ``eredeti osztályt'', nem fog rendelkezni getterekkel -- ezért hibát kapunk.
+
+\begin{lstlisting}[style=cppstyle]
+int main() 
+{
+	Array<int> a01(42);
+	Array<int> a02;
+	
+	std::cout << a01 << ", " << a02 << std::endl;	// 42, 0
+	
+	int size = a01.get_capacity();	// error
+	int count = a01.get_count();	// error
+	
+	return 0;
+}
+\end{lstlisting}
+
+Itt tudatosítanunk kell, hogy a származtatás és a template fogalma nem jár kéz a kézben. Egy template specializáció nem látja az ``eredeti osztály'' implementációját, ezért ha nem írjuk meg explicite ugyanazokat a műveleteket, nem fog rendelkezni velük.
+
+\subsection{Dependent scope-ok}
+
+Idézzünk fel pár ismeretet korábbról. Létezik a C++-ban a \verb*|::| operátor (\textit{scope resolution operator}). Ennek a \textbf{bal oldalán} szerepelhet \textbf{névtér-azonosító} vagy \textbf{osztálynév} (vagy semmi, pl. \textit{globális névtér} esetén). A \textbf{jobb oldalán} szerepelhet (többek között) \textbf{statikus változó vagy típusnév} (a többi esettel nem foglalkozunk).
+
+\begin{lstlisting}[style=cppstyle]
+namespace MyNamespace 
+{
+	static int AAA;
+	
+	class MyClass {};
+}
+
+class MyClass 
+{
+	static int AAA;
+};
+
+int main() 
+{
+	MyNamespace::MyClass object; // [namespace] :: [typename]
+	MyNamespace::AAA = 5;		 // [namespace] :: [static v.]	
+	MyClass::AAA 	 = 42;		 // [typename]  :: [static v.]
+	
+	return 0;
+}
+\end{lstlisting}
+
+Vizsgáljuk meg a következő példát! Az \verb*|S| struktúra egy sablonparaméter szerint tartalmazni fog egy statikus \verb*|int| típusú változót. Ha ez a paraméter \verb*|int|, akkor helyette egy ugyanolyan nevű aliaszt definiált az \verb*|int| típusnak.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T>
+struct S      { static int X;  }; // static variable declared
+
+template <>	// template specialisation
+struct S<int> { typedef int X; }; // a new type is defined
+\end{lstlisting}
+
+Élesben így lehetne kipróbálni.
+
+\begin{lstlisting}[style=cppstyle]
+int main()
+{
+	S<double>::X = 42;	// initialisation of static variable
+	S<int>::X variable;	// equivalent to: int variable;
+}
+\end{lstlisting}
+
+Vegyük például az alábbi függvényt, ami az \verb*|S| típust használja fel! Egyetlen sorból áll, mégis fordítási hibát kapunk, ugyanis \textbf{nem tudja eldönteni a fordító, hogy a \texttt{::} után statikus változó, vagy típusdefiníció szerepel}. Úgyhogy \textbf{azt feltételezi, hogy statikus változó lesz}. Ezt nevezzük \textbf{függő típusozás}nak.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T>
+void func()
+{
+	S<T>::X var_name;	// type or variable?
+}
+\end{lstlisting}
+
+Mivel a template-eket kétszer olvassa át a fordító, a második menetben szintaktikai hibát talál (\verb*|X var_name;|). Annak egyértelműsítésére, hogy valóban típusnévnek lássa, egyszerűen a \verb*|typename| kulcsszót kell az elejére helyeznünk.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename T>
+void func()
+{
+	typename S<T>::X var_name;	// type or variable?
+}
+\end{lstlisting}
+
+Ezzel kiküszöböltük a hibát. Ez a probléma vissza fog térni az iterátoroknál.
+
+\section{Az STL (Standard Template Library)}
+
+A C-ben azt szoktuk meg, hogy ha valmilyen adatszerkezetre szükségünk van, azt magunknak kell megírnunk. A C++ készítői gondoltak erre és létrehozták a \textbf{Standard Template Library}t, vagy röviden az \textbf{STL}-t. Ebben megtalálhatjuk a legalapvetőbb algoritmusokat és adatszerkezetek, ezzel hatékonyabbá téve a programozásunkat. A tartalmazott elemek mind az \verb*|std| névtérben találhatók.
+
+Minden információ elérhető a \url{https://en.cppreference.com/w/cpp} oldalon. Ebben a jegyzetben csak a legfontosabbakról gyűjtöttem össze a legalapvetőbb információkat, zanzásítva. A vizsgán használhatjuk a dokumentációt, amit természetesen nem kell bemagolnunk, de a legfontosabb fogalmakkal érdemes tisztában lennünk.
+
+\subsection{Iterátorok}
+
+Elemi programozási művelet, hogy végigmegyünk egy adathalmaz összes elemén. Tömbszerű adatszerkezetek 
+esetén végtelenül egyszerű, azonban mások esetében falba ütközünk. Hogyan megyünk végig egy fának a csúcsain? Hogyan férjünk hozzá? Egyáltalán szabad-e?
+
+Erre a megoldásra születtek meg az \textbf{iterátorok}. \textbf{A belső reprezentációtól függetlenül végig tudunk menni az adathalmazon elemenként}. Egy \verb*|std::vector<int>| típusú objektumnak az iterátor típusát így érhetjük el: \verb*|std::vector<int>::iterator|.
+
+\begin{lstlisting}[style=cppstyle]
+#include <vector>
+#include <iostream>
+
+int main() {
+	std::vector<int> v = { 1, 2, 3, 4, 5 };
+	
+	for (std::vector<int>::iterator i = v.begin(); 
+		 i != v.end(); i++) 
+	{
+		std::cout << *i << std::endl;
+	}
+	return 0;
+}
+\end{lstlisting}
+
+A példából az látszik, hogy a viselkedésük kísértetiesen hasonlít a mutatókéhoz. Valóban, hiszen ezek a speciális típusok \textbf{rendelkeznek dereferáló operátorral} (\verb*|*|) \textbf{és inkrementáló operátorral} (\verb*|++|). Több operátort is túlterhelhetnek, de alapvetően ez a kettő szükséges, hogy \textbf{iterátornak minősüljenek}.
+
+Rendeljük ki egy függvénybe az iterátorra vonatkozó ciklust! A célunk az, hogy \textit{minél általánosabban működjön}, tehát vezessünk be egy template paramétert a konténer számára. Külön nem kell foglalkoznunk azzal, hogy a konténer milyen típusú objektumokat tárol, hiszen az kiderül a fordítás során.
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+#include<vector>
+
+template <typename Container>
+void iterate(const Container& c) {
+	for (Container::iterator i = c.begin(); 
+		 i != c.end(); i++)
+	{
+		std::cout << *i << std::endl;
+	}
+}
+
+int main() {
+	std::vector<int> v = { 1, 2, 3, 4, 5 };
+	iterate(v);
+	return 0;
+}
+\end{lstlisting}
+
+Sajnos hibára fut a programunk. Az előző alfejezetben pont erről a szituációról volt szó, de most látjuk a gyakorlati hasznát. A fordító azt feltételezi, hogy a \verb*|Container::iterator| egy statikus adattag, de később jön rá, hogy szintaktikailag helytelen eredményt kap. Mivel nem egyértelmű a hiba forrása, figyelmeztetést is dob a \verb*|g++|, hogy hiányzik a \verb*|typename| kulcsszó. Írjuk akkor a helyére!
+
+\clearpage
+
+\begin{lstlisting}[style=cppstyle]
+template <typename Container>
+void iterate(const Container& c) {
+	for (typename Container::iterator i = c.begin(); 
+		 i != c.end(); i++)
+	{
+		std::cout << *i << std::endl;
+	}
+}
+\end{lstlisting}
+
+Azonban így sem fordul le a programunk. Ezúttal a konstansságot sértjük meg. A vektort konstans referenciaként adjuk át, ilyen módon a fordító csak konstans tagfüggvényeket fog engedni, hogy meghívjunk. Azonban \textit{megvan a veszélye, hogy az iterátoron keresztül manipuláljuk a vektor tartalmát, amit nyilván el akarunk kerülni}. Ennek elkerülésére lettek bevezetve a \textbf{konstans iterátorok} (\verb*|const_iterator|). A konstans iterátorhoz tartozik speciális elejét (\texttt{cbegin()}) és végét (\texttt{cend()}) meghatározó metódus, de a hagyományosat is használhatjuk.
+
+\begin{lstlisting}[style=cppstyle]
+template <typename Container>
+void iterate(const Container& c) {
+	// c.begin() will work just fine
+	for (typename Container::const_iterator i = c.cbegin(); 
+		 i != c.cend(); i++) // c.end() is equally ok
+	{
+		std::cout << *i << std::endl;
+	}
+}
+\end{lstlisting}
+
+Kezd picit hosszúvá válni az iterátortípus neve. Ezt tudjuk tömöríteni egy \textbf{újabb template paraméter} hozzáadásával. Ehhez viszont szükségünk van további függvényparaméterre, hogy helyesen működjön a template paraméter dedukció. Alkalmazzuk azt a bevett szokást, ami az STL algoritmusaira jellemző, hogy \textbf{megkapja paraméterül a kezdeti és a végső iterátort} az alábbi módon. Így mostmár semmilyen konstanssággal meg \verb*|typename|mel nem kell szenvednünk.
+
+\begin{lstlisting}[style=cppstyle]
+#include <iostream>
+#include<vector>
+
+template <typename Container, typename Iterator>
+void iterate(Iterator begin, Iterator end, const Container& c) 
+{
+	for (Iterator i = begin; i != end; i++) {
+		std::cout << *i << std::endl;
+	}
+}
+
+int main() 
+{
+	std::vector<int> v = { 1, 2, 3, 4, 5 };
+	iterate(v.begin(), v.end(), v);
+	iterate(v.cbegin(). v.cend(), v); // both work perfectly
+	return 0;
+}
+\end{lstlisting}
+
+%\clearpage
+
+Egyes konténereknél van lehetőség arra is, hogy fordított irányban is bejárjuk -- a vektor képes erre is. Az irány megfordításához az \verb*|rbegin()| és \verb*|rend()| metódusokkal rendelkező \verb*|reverse_iterator| típust tudjuk használni. Mivel az algoritmusunkat elég általánosan fogalmaztuk meg, így ezek meghívásával is tökéletesen fog működni -- még az \verb*|i++|-t sem kell átírnunk! Ennek a változatnak is ugyanúgy létezik a konstans verziója, a \verb*|reverse_const_iterator| (\verb*|crbegin()| és \verb*|crend()| műveletekkel).
+
+\begin{lstlisting}[style=cppstyle]
+// ...
+
+int main() 
+{
+	std::vector<int> v = { 1, 2, 3, 4, 5 };
+	
+	iterate(v.begin(), v.end(), v);		// iterator
+	iterate(v.cbegin(). v.cend(), v); 	// const_iterator
+	
+	iterate(v.rbegin(), v.rend(), v);	// reverse_iterator
+	iterate(v.crbegin(), v.crend(), v);	// reverse_const_iterator
+	
+	return 0;
+}
+\end{lstlisting}
+
+
+\textbf{Iterátor invalidáció}: egyes műveletek invalidálhatnak iterátort, mely után szigorúan tilos használni azt.
+\begin{itemize}
+	\item Pl. \verb*|std::vector|nak a \verb*|push_back()| művelete invalidálja az iterátort, ha duplázódik a kapacitás
+	\item De: \verb*|std::list|nek a \verb*|push_back()| művelete nem invalidálja az iterátort
+\end{itemize}
+
+\subsubsection{\underline{Iterátorok típusai}}
+
+\begin{enumerate}
+	\item \textbf{Input iterator} vagy \textbf{output iterator} -- egyirányú, egyetlenszer mehetünk végig rajta. Ha \textit{jobbértéket} olvas be, akkor \textit{input iterator}, ha \textit{balértéket}, akkor \textit{output iterator}. \\ Operátorok: \verb*|*|, \verb*|++|, \verb*|==|, \verb*|!=| \\ Implementálja: \verb*|std::istream_iterator|, \verb*|std::ostream_iterator|
+	\item \textbf{Forward iterator} -- egyirányú, többször mehetünk végig. \\ Operátorok: \verb*|*|, \verb*|++|, \verb*|==|, \verb*|!=| \\ Implementálja: \verb*|std::forward_list| (C++11)
+	\item \textbf{Bidirectional iterator} -- kétirányú, többször végig mehetünk rajta. \\ Operátorok: \verb*|*|, \verb*|++|, \verb*|--|, \verb*|==|, \verb*|!=| \\ Implementálja: \verb*|std::list|, \verb*|std::set|, \verb*|std::map|, $\ldots$
+	\item \textbf{Random access iterator} -- kétirányú, többször, és akár tetszőleges elemet is kiválaszthatunk. \\ Operátorok: \verb*|*|, \verb*|+|, \verb*|-|, \verb*|++|, \verb*|--|, \verb*|+=|, \verb*|-=|, \verb*|==|, \verb*|!=| \\ Implementálja: \textit{tömb}, \verb*|std::vector|, \verb*|std::deque|
+\end{enumerate}
+
+\clearpage
+
+\subsection{Konténerek (adatszerkezetek)}
+
+\subsubsection{\underline{\texttt{std::vector}}}
+
+\begin{itemize}
+	\item könyvtár: \verb*|<vector>|
+	\item implementáció a háttérben: \textbf{dinamikus tömb} a heapen
+	\item iterátor: \textbf{random access iterator}
+	\item specializációk
+	\begin{itemize}
+		\item \texttt{bool} -- 1 bájtnyi tárterületre 8 bit fér, ahol 1 bit jelöl 1 darab logikai változót. Változókat nem tárolhatunk el 1 bájtnál kisebb területen, emiatt a \verb*|bool|ok vektora (tömbje) 8-szor hatékonyabb
+		\item \texttt{string} $\Longleftrightarrow$ \texttt{std::vector<char>}
+	\end{itemize}
+	\item műveletek
+	\begin{itemize}
+		\item \textbf{konstruktor}
+		\begin{itemize}
+			\item megadható a kezdeti méret, de ilyenkor a típusparaméter default konstruktora lefut és beszúrásnál ezen objektumok után fogja behelyezni az elemet
+			\item default konstruktor, kezdeti méret nélkül
+		\end{itemize}
+		\item \texttt{size()} -- tárolt elemek száma
+		\item \texttt{capacity()} -- teljes kapacitás
+		\item \texttt{[]} operátor -- $O(1)$ hatékonyságú, túlindexelésnél nem dob hibát
+		\item \texttt{at()} -- olyan, mint az indexelő operátor, de túlindexelés esetén kivételt dob
+		\item \verb*|push_back()|
+		\begin{itemize}
+			\item a vektor végébe beteszi az elemet ($O(1)$)
+			\item ha betelt, megduplázza a tárterületet (ekkor $O(n)$)
+			\item összességében \textbf{amortizált konstans} $O(1)$: minél több elemet szúrunk be, annál ritkábbá válik szükségessé a tömb méretének duplázása, ezáltal a kettő érték annyira kiegyenlíti egymást, hogy konstanssá válik
+		\end{itemize}
+	\item \verb*|push_front()| -- beszúrás az elejére, $O(n)$, mivel el kell tolnia mindegyiket eggyel
+	\item \verb*|pop_back()|, \verb*|pop_front()| -- rendre az utolsó / első elemet kiszedi, $O(1)$
+	\item \verb*|reserve()| -- üres vektor, kapacitást megváltoztatja, nem inicializál
+	\item \verb*|swap()| -- két tömb belső tartalmát felcseréli (egyszerű pointerátállítással)
+	\end{itemize}
+\end{itemize}
+
+\clearpage
+
+\subsubsection{\underline{\texttt{std::list}}}
+
+\begin{itemize}
+	\item könyvtár: \verb*|<list>|
+	\item implementáció a háttérben: \textbf{kétirányú láncolt lista} (S2L) (\textit{általában})
+	\item iterátor: \textbf{bidirectional iterator}
+	\item műveletek
+	\begin{itemize}
+		\item \texttt{size()} -- tárolt elemek száma
+		\item \texttt{capacity()} -- nem létezik
+		\item \texttt{[]} operátor, \verb*|at()| metódus -- nincsenek, ugyanis $O(n)$ lenne, ezért úgy döntöttek, nem fogják támogatni
+		\item \verb*|push_back()|, \verb*|push_front()| -- mindkettő $O(1)$
+		\item \verb*|insert()| -- $O(1)$, megadjuk a pointert, ami elé beillesztjük
+		\item \verb*|sort()| -- sorbarendezi az elemeket (mivel \verb*|std::sort()| nem támogatja)
+	\end{itemize}
+\end{itemize}
+
+\subsubsection{\underline{\texttt{std::deque}}}
+
+\begin{itemize}
+	\item könyvtár: \verb*|<deque>|
+	\item implementáció a háttérben: \textbf{deque adatszerkezet}, röviden: \textit{tömbök vektora}\footnote{Bővebben: \url{https://www.wikiwand.com/en/Double-ended_queue}} \\ (figyelem: nem mátrix!)
+	\item iterátor: \textbf{random access iterator}
+	\item műveletek
+	\begin{itemize}
+		\item \texttt{size()} -- tárolt elemek száma
+		\item \texttt{capacity()} -- teljes kapacitás
+		\item \texttt{[]} operátor, \verb*|at()| metódus támogatott
+		\item hasonló metódusok vonatkoznak rá, mint a \verb*|std::vector|ra
+	\end{itemize}
+\end{itemize}
+
+\subsubsection{\underline{\texttt{std::set}}}
+
+\begin{itemize}
+	\item könyvtár: \verb*|<set>|
+	\item implementáció a háttérben: \textbf{bináris keresőfa}, rendezetten tárolja az elemeket
+	\begin{itemize}
+		\item előfeltétel, hogy a típus rendelkezzen \verb*|<| operátorral, azaz \textbf{rendezhető legyen}
+	\end{itemize}
+	\item iterátor: \textbf{bidirectional iterator}
+	\item műveletek
+	\begin{itemize}
+		\item \texttt{size()} -- halmaz számossága
+		\item \texttt{capacity()}, \texttt{[]} operátor -- nincsen
+		\item \verb*|insert()| -- elem beszúrása, eleve rendezve szúrja be $\to$ nincsen \verb*|push_back()| és \verb*|push_front()| művelete
+	\end{itemize}
+\end{itemize}
+
+\subsubsection{\underline{\texttt{std::map}}}
+
+\begin{itemize}
+	\item könyvtár: \verb*|<map>|
+	\item implementáció a háttérben: \textbf{szótár adatszerkezet}, kulcs-érték párokat tárol, általában \textbf{piros-fekete fa} áll a hátterében
+	\begin{itemize}
+		\item előfeltétel, hogy a kulcstípus \textbf{rendezhető legyen}
+	\end{itemize}
+	\item iterátor: \textbf{bidirectional iterator}, kulcs-érték párral tér vissza
+	\item műveletek
+	\begin{itemize}
+		\item \texttt{size()} -- tárolt elemek száma
+		\item \texttt{capacity()} -- nincsen
+		\item \texttt{[]} operátor
+		\begin{itemize}
+			\item az operátor a kulcsértéket várja (tehát ha \verb*|<std::string, int>| párokat tárol, akkor \verb*|std::string|et kell megadnunk a \verb*|[]| operátorban)
+			\item adatlekérdezésnél $O(\log n)$ műveletidejű, még elfogadható
+			\item \textbf{ha nem szerepel a halmazban az adott elem, beszúrja azt}
+			\item nem-konstans tagfüggvényként van definiálva, máskülönben nem tudnánk beszúrni
+			\item visszatérési értéke: az érték, ami a kulcshoz van rendelve
+		\end{itemize}
+		\item \verb*|find()| -- adott kulcs-érték pár megkeresése
+	\end{itemize}
+\end{itemize}
+
+
+\subsubsection{\underline{\texttt{std::ifstream}}}
+
+\begin{itemize}
+	\item könyvtár: \verb*|<fstream>|
+	\item implementáció a háttérben: \textbf{adatfolyam}
+	\item iterátor: \textbf{input iterator}
+	\item műveletek
+	\begin{itemize}
+		\item \verb*|<<| -- adatfolyam fogadása
+		\item \verb*|>>| -- adatfolyam küldése
+		\item \verb*|close()| -- adatfolyam lezárása (C-ben \verb*|fclose()|)
+	\end{itemize}
+\end{itemize}
+
+
+\subsection{Algoritmusok}
+
+Könvytáruk: \verb*|<algorithm>|. A legtöbb algoritmus függvényszignatúrája a következő:
+
+\begin{center}
+	\verb|algo(begin : Iterator, end : Iterator, other_data : AAA) : BBB|
+\end{center}
+
+Tehát iterátorok által meghatározott $[begin, end)$ intervallumon dolgoznak és a legtöbben iterátorral térnek vissza -- de természetesen vannak kivételek.
+
+Sokuknak létezik \verb*|_if| szuffixummal ellátott változata is, mely egy \textbf{funktor}t vár el utolsó paraméteréül. \textbf{A funktor egy olyan típus, ami implementálja a \texttt{()} operátort}. A legtöbb STL-es algoritmus \verb*|bool|lal visszatérő funktort vár el.
+
+\clearpage
+
+\subsubsection{\underline{\texttt{std::copy}}}
+
+\begin{itemize}
+	\item átmásolja az elemeket egyik adatszerkezetből a másikba (eltérő típusúak is lehetnek)
+	\item a forráskonténer kezdő és végső iterátorát, valamint a célkonténer keldő iterátorát várja el paraméterül
+	
+	\begin{lstlisting}[style=cppstyle]
+#include <algorithm>
+#include <vector>
+
+int main() {
+	std::vector<int> source = {1, 2, 3, 4, 5};	
+	std::vector<int> destination;
+
+	std::copy(source.begin(), source.end(), 
+			  destination.begin());
+	
+	return 0;
+}
+	\end{lstlisting}
+\end{itemize}
+
+\subsubsection{\underline{\texttt{std::count}, \texttt{std::count\_if}}}
+
+\begin{itemize}
+	\item egy intervallumon megszámolja, hány elem egyezik meg a paraméterül átadott elemnek
+	
+	\begin{lstlisting}[style=cppstyle]
+#include <algorithm>
+#include <vector>
+
+int main() 
+{
+	std::vector<int> src = {1, 2, 2, 3, 4, 4, 5};
+	int result = std::count(src.begin(), src.end(), item);
+	
+	return 0;
+}
+	\end{lstlisting}
+
+	\item egy intervallumon megszámolja, hány elemre teljesül az adott funktor
+	
+	\begin{lstlisting}[style=cppstyle]
+#include <algorithm>
+#include <vector>
+
+// functor
+struct IsEven { 
+	bool operator()(int item) const {
+		return item % 2 == 0;
+	}
+};
+		
+int main() 
+{
+	std::vector<int> src = {1, 2, 2, 3, 4, 4, 5};	
+	int result = std::count_if(src.begin(),src.end(),IsEven());
+	
+	return 0;
+}
+	\end{lstlisting}
+\end{itemize}
+
+
+\subsubsection{\underline{\texttt{std::find}, \texttt{std::find\_if}}}
+
+\begin{itemize}
+	\item egy intervallumon megkeresi az első elemet, ami kielégíti a feltételt és visszaadja annak az iterátorát
+	\item ha nem talál ilyet, az intervallum végső korlátjával tér vissza -- mindig ellenőrizni kell a visszatérési értéket, ugyanis \verb*|end()| iterátort tilos dereferálni
+	\item azon adatszerkezeteknél, ahol nem lenne elég hatékony az absztrahált algoritmus, azok előre definiált \verb*|find()| metódussal rendelkeznek
+	
+	\begin{lstlisting}[style=cppstyle]
+#include <algorithm>
+#include <vector>
+#include <iostream>
+
+struct IsEven { 
+	bool operator()(int item) const {
+		return item % 2 == 0;
+	}
+};
+		
+int main() {
+	std::vector<int> src = {1, 2, 2, 3, 4, 4, 5};	
+	std::vector<int>::iterator first_even = std::find_if(src.begin(), src.end(), IsEven());
+	if (first_even != src.end()) 
+		std::cout << *first_even << std:.endl;
+}
+	\end{lstlisting}
+\end{itemize}
+
+\subsubsection{\underline{\texttt{std::sort}}}
+
+\begin{itemize}
+	\item intervallumon sorbarendezi az adatszerkezet elemeit
+	\item muszáj rendelkeznie \textbf{random access iterátor}ral, különben nem fog működni a sorbarendezés
+	
+		\begin{lstlisting}[style=cppstyle]
+#include <algorithm>
+#include <vector>
+#include <iostream>
+
+int main() {
+	std::vector<int> src = { 3, 5, 7, 1, 42, 0 };	
+	std::sort(src.begin(), src.end());	
+}
+	\end{lstlisting}
+\end{itemize}
+
+\section{Template metaprogramozás}
+
+Egy érdekes, előre nem tervezett következménye a C++-os template-eknek a template metaprogramozás. A strukturált vezérlési egységek (ciklusok, stb.) híján a \textbf{rekurzió} maradt a fő eszköze, emiatt közel funkcionális programozáshoz hasonló paradigmákkal lehet programozni vele. Nem barátságos, nehéz debugolni, ezért csak érdeklődőknek hívjuk fel rá a figyelmet.
+
+\chapter{Függelék}
+
+\section{Különbségek a C és a C++ között}
+
+\subsection{Kulcsszókkal kapcsolatos különbségek}
+
+\begin{itemize}
+	\item \textbf{A \texttt{const} kulcszó}.
+	
+	\begin{itemize}
+		\item C-ből örökölt jelentései:
+		
+		\begin{itemize}
+			\item \verb|const T var;| -- \textbf{konstans változó}; az értékét nem lehet módosítani közvetlenül.
+			\item \verb|const T* var;| -- \textbf{konstans értékre mutató pointer}; a memóriacímet meg lehet változtatni, az általa mutatott értéket nem.
+			
+			\begin{itemize}
+				\item \verb|const T* var| vagy \verb|T const* var| -- a kettő ekvivalens, a lényeg, hogy a \verb|const| kulcsszó a \verb*|*| előtt szerepeljen.
+			\end{itemize}
+			
+			\item \verb|T* const var;| -- \textbf{konstans mutató}; a pointer memóriacímét nem változtathatjuk meg, de a rá mutató érték módosítható.
+			\item \verb|const T* const var;| -- mint a memóriacím, mind az általa mutatott érték konstans, nem megváltoztatható.
+		\end{itemize}
+		
+		\item C++-os kontextusai:
+		
+		\begin{itemize}
+			\item \verb|const T& var;| -- \textbf{konstans referencia}; sem a referált változót, sem annak az értékét nem lehet módosítani (bizonyos értelemben olyan, mint a \\ \verb|const T* const var|).
+			\item \verb|T get_value() const {...}| -- \textbf{konstans tagfüggvény}; egy ``ígéretet'' teszünk a fordítónak, hogy a tagfüggvényen belül nem módosítunk semmilyen belső értéket.
+		\end{itemize}
+	\end{itemize}
+	
+	\item \textbf{A \texttt{static} kulcszó}.
+	
+	\begin{itemize}
+		\item C-ből örökölt jelentései:
+		
+		\begin{itemize}
+			\item \textbf{statikus lokális változók} -- a program teljes életciklusa során a memóriában élnek, de csak abban a \textbf{blokkutasításban} használhatók, amelyikben definiáltuk.
+			\newpage
+			\begin{lstlisting}[style=cppstyle]
+int increment_var() {
+	// executed only at the first function call
+	static int var = 0;
+	var++;
+	return var;
+}
+int main() { return increment_var(); } // 1
+			\end{lstlisting}
+		
+			\item \textbf{statikus globális változók} -- a program teljes életciklusa során a memóriában élnek, azonban csak abban a \textbf{fordítási egységben} használhatók, amelyben definiáltuk. Fordítási időben inicializálódnak.
+			
+			\begin{minipage}{0.4\linewidth}
+	\begin{lstlisting}[style=cppstyle]
+// main.cpp
+static int x;
+int main() { x = 2; }
+	\end{lstlisting}
+\end{minipage}
+\begin{minipage}{0.1\linewidth}
+	~
+\end{minipage}
+\begin{minipage}{0.45\linewidth}
+	\begin{lstlisting}[style=cppstyle]
+// other.cpp
+static int x;
+void f() { x = 0; }
+	\end{lstlisting}
+\end{minipage}
+
+Akár azonos nevük is lehet, hiszen nem egy fordítási egységben vannak.			
+			
+			\item \textbf{statikus függvények} -- a fordítási egységre nézve lokális függvények.
+			
+			\begin{minipage}{0.4\linewidth}
+				\begin{lstlisting}[style=cppstyle]
+// lib.h
+#ifndef LIB_H
+#define LIB_H
+
+int f();
+
+#endif // LIB_H
+
+				\end{lstlisting}
+			\end{minipage}
+			\begin{minipage}{0.1\linewidth}
+				~
+			\end{minipage}
+			\begin{minipage}{0.45\linewidth}
+\begin{lstlisting}[style=cppstyle]
+// lib.cpp
+#include "lib.h"
+
+static int g() 
+{ return 42; }
+
+int f() { return g(); }
+\end{lstlisting}
+			\end{minipage}
+		
+\begin{lstlisting}[style=cppstyle]
+// main.cpp
+#include "lib.h"
+int main() { 
+	int x = f();
+	return g(); // 'g' was not declared in this scope
+}
+\end{lstlisting}
+
+		\end{itemize}
+		
+		\item C++-os kontextusai:
+		
+		\begin{itemize}
+			\item \textbf{statikus adattagok} -- osztályszintű adattagot jelent.
+			
+			\begin{lstlisting}[style=cppstyle]
+class X { static int n; }; 
+// declaration (uses 'static')
+int X::n = 1; // definition (does not use 'static')
+			\end{lstlisting}
+		
+			\item \textbf{statikus tagfüggvény} -- osztályszintű tagfüggvényt jelöl.
+			
+			\begin{lstlisting}[style=cppstyle]
+class X {
+	static int n;    // declaration
+public:
+	static void f() { return n; }
+};
+int X::n = 7; // definition	
+			\end{lstlisting}
+			\textit{Megjegyzés}: a statikus tagfüggvények nem rendelkezhetnek \verb*|const|, \verb*|volatile| vagy \verb*|virtual| kulcsszókkal.
+		\end{itemize}
+	\end{itemize}
+\end{itemize}
+
+\subsection{Függvényekkel kapcsolatos különbségek}
+
+\begin{itemize}
+	\item \textbf{Implicit függvénydeklaráció}.
+	\begin{itemize}
+		\item A C támogatja, alapértelmezetten \verb*|int| típussal tér vissza.
+		\item A C++ ezt nem engedi, fordítási hibát dob.
+	\end{itemize}
+	\item \textbf{Üres paraméterlistájú függvények} (pl. \verb|int main();|).
+	\begin{itemize}
+		\item Jelentése C-ben: bármennyi paramétert át lehet neki adni, de nem fog a függvény vele kezdeni semmit. Figyelmeztetést dob a fordító, ha ilyet teszünk. Nulla paraméteres függvényt az alábbi módon lehet C-ben írni: \verb|int main(void);|. Ezt a megoldást a C++ is támogatja.
+		\item Jelentése C++-ban: nulla paraméteres függvény. Ha ilyennek adunk át valamilyen paramétert, arra fordítási hibát kapunk. 
+	\end{itemize}
+\end{itemize}
+
+
+\subsection{Típusokkal kapcsolatos különbségek}
+
+\begin{itemize}
+	\item \textbf{Változó hosszú tömbök} (\textit{variadic length arrays}, VLA).
+	\begin{itemize}
+		\item C99-től kezdte támogatni a standard, C11-től viszont opcionálissá vált.
+		\item A C++ sosem támogatta és aktívan ellenzi ezt a módszert.
+	\end{itemize}
+	\item \textbf{Sztringliterálok típusa}.
+	\begin{itemize}
+		\item C-ben \verb|char[]|.
+		\item C++-ban \verb|const char[]|.
+	\end{itemize}
+\end{itemize}
+
+\newpage
+
+\section{Példatár}
+
+\subsection{Az \texttt{Array} osztály}
+
+\begin{lstlisting}[style=cppstyle, caption={A teljes \textit{Array} osztály}]
+#include <string>
+#include <sstream>
+#include <iostream>
+
+class Array {
+private:
+	int* data;
+	int  capacity;
+	static int count; // static variable declaration
+	
+public:
+	// constructor
+	Array(int capacity) {
+		if (capacity == 0) capacity  = 1;
+		if (capacity < 0)  capacity *= (-1);
+		
+		this->data = new int[capacity];
+		this->capacity = capacity;
+		this->count++;
+	}
+	
+	// destructor
+	~Array() { delete[] this->data; }
+	
+	// copy constructor
+	Array(const Array& other) : capacity(other.capacity) {
+		data = new int[capacity];
+		
+		for (int i = 0; i < capacity; i++) {
+			data[i] = other.data[i];
+		}
+	}
+	
+	// assignment operator
+	Array& operator=(const Array& other) {
+		if (this != &other) {
+			delete[] data;
+			capacity = other.capacity;
+			data = new int[capacity];
+			
+			for (int i = 0; i < capacity; i++) {
+				data[i] = other.data[i];
+			}
+		}
+		
+		return *this;
+	}
+	
+	// getter
+	int get_capacity() const { return capacity; }
+	// '[]' operator (setter)
+	int& operator[](int index) { return data[index]; }
+	// '[]' operator (getter)
+	const int& operator[](int index) const { return data[index]; }
+	
+	// static member function
+	static int get_count() { return count; }
+	
+	// cast operator to int*
+	operator int*() const {
+		int* traditional = new int[capacity];
+		
+		for (int i = 0; i < capacity; i++)
+			traditional[i] = data[i];
+		
+		return traditional;
+	}
+
+	// friend function declaration
+	friend std::ostream& operator<<(std::ostream& out, 
+									const Array& array);
+};
+
+// static variable definition
+int Array::count = 0;
+
+// '<<' operator for printing to 'stdout'
+std::ostream& operator<<(std::ostream& out, const Array& array) 
+{
+	std::ostringstream str;
+	str << "{ ";
+		
+		for (int i = 0; i < array.capacity; i++) {
+			str << array.data[i];
+			
+			if (i != array.capacity - 1) str << ", ";
+		}
+		
+		str << " }";
+	
+	out << str.str();
+	return out;
+}
+
+\end{lstlisting}
+
+\subsection{A \texttt{Point} osztály}
+
+\begin{lstlisting}[style=cppstyle, caption={A teljes \textit{Point} osztály}]
+class Point {
+	int x, y;
+		
+public:
+	Point(int x = 0, int y = 0) : x(x), y(y) { } 
+								// initialiser list
+};
+\end{lstlisting}
+
+\subsection{A \texttt{Shape}, \texttt{Circle} és \texttt{Rectangle} osztályok}
+
+\begin{lstlisting}[style=cppstyle, caption={A származtatást bemutató \textit{Shape} osztály}]
+class Shape
+{
+public:
+	virtual double area() { return 0; }
+};
+
+class Circle : public Shape
+{
+	double radius;
+	
+public:
+	Circle(int radius = 1)
+	{
+		if (radius < 0) radius *= -1;
+		this->radius = radius;
+	}
+	
+	double area() { return 3.14 * radius * radius; }
+};
+
+class Rectangle : public Shape
+{
+	double width, height;
+	
+public:
+	Rectangle(double width = 1, double height = 1)
+	{
+		if (width < 0) width *= -1;
+		if (height < 0) height *= -1;
+		
+		this->width = width;
+		this->height = height;
+	}
+	
+	double area() { return width * height; }
+};
+\end{lstlisting}
+
+\end{document}
