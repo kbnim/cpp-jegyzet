@@ -14,5 +14,5 @@ Many thanks to _Tibor Brunner_, my instructor, for taking the time to proofread 
 ## Remarks
 - As of now, the lecture notes have been proofread, however, the recommended corrections are yet to be implemented.
 - Please note that the lecture notes are written in Hungarian. I do not intend to translation it to English. Having said that,
-  - the examples code snippets use English names for variables, functions, classes, etc.
+  - the example code snippets use English names for variables, functions, classes, etc.
   - for each keyword and definition, I gave the English translation; that way, making it easier to navigate in the document.
