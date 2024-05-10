@@ -1,5 +1,5 @@
 # C++ Lecture Notes
-My humble contribution to providing a (hopefully useful) summary of C++ taught at ELTE.
+My humble contribution to provide a (hopefully useful) summary of C++ taught at ELTE.
 
 ## Summary
 The notes cover three areas of the basics of C++:
